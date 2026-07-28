@@ -142,4 +142,37 @@ object CalendarHelper {
         val eventUri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId)
         return context.contentResolver.delete(eventUri, null, null) > 0
     }
+
+    /**
+     * Adds or removes [email] as an attendee on [eventId]. On a Google-synced calendar this is
+     * what makes the event show up on the attendee's own calendar too, and is what makes Google
+     * Calendar send them an invitation email - there's no separate email-sending step needed.
+     */
+    fun setAttendee(context: Context, eventId: Long, email: String, present: Boolean) {
+        if (!hasCalendarPermissions(context) || email.isBlank()) return
+
+        val selection = "${CalendarContract.Attendees.EVENT_ID} = ? AND ${CalendarContract.Attendees.ATTENDEE_EMAIL} = ?"
+        val selectionArgs = arrayOf(eventId.toString(), email)
+
+        val alreadyPresent = context.contentResolver.query(
+            CalendarContract.Attendees.CONTENT_URI,
+            arrayOf(CalendarContract.Attendees._ID),
+            selection,
+            selectionArgs,
+            null,
+        )?.use { it.moveToFirst() } ?: false
+
+        if (present && !alreadyPresent) {
+            val values = ContentValues().apply {
+                put(CalendarContract.Attendees.EVENT_ID, eventId)
+                put(CalendarContract.Attendees.ATTENDEE_EMAIL, email)
+                put(CalendarContract.Attendees.ATTENDEE_RELATIONSHIP, CalendarContract.Attendees.RELATIONSHIP_ATTENDEE)
+                put(CalendarContract.Attendees.ATTENDEE_TYPE, CalendarContract.Attendees.TYPE_REQUIRED)
+                put(CalendarContract.Attendees.ATTENDEE_STATUS, CalendarContract.Attendees.ATTENDEE_STATUS_INVITED)
+            }
+            context.contentResolver.insert(CalendarContract.Attendees.CONTENT_URI, values)
+        } else if (!present && alreadyPresent) {
+            context.contentResolver.delete(CalendarContract.Attendees.CONTENT_URI, selection, selectionArgs)
+        }
+    }
 }

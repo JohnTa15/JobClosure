@@ -123,7 +123,8 @@ class BookingEditViewModel(
             if (state.addToCalendar && state.selectedCalendarId != null) {
                 val calendarId = state.selectedCalendarId
                 val context = getApplication<Application>()
-                val reminderMinutes = settingsRepository.settings.first().reminderMinutesBefore
+                val appSettings = settingsRepository.settings.first()
+                val reminderMinutes = appSettings.reminderMinutesBefore
 
                 val churchStartMillis = booking.ceremonyStart.toMillis()
                 val churchEndMillis = booking.ceremonyEnd.toMillis()
@@ -159,6 +160,19 @@ class BookingEditViewModel(
                 } else if (receptionEventId != null) {
                     CalendarHelper.deleteEvent(context, receptionEventId)
                     receptionEventId = null
+                }
+
+                // Inviting the drone partner as an attendee both puts the job on his calendar
+                // (once he accepts) and makes Google Calendar send him the invite email - no
+                // separate email-sending code needed. Turning the drone switch back off removes
+                // the invite again instead of leaving a stale one.
+                if (appSettings.dronePartnerEmail.isNotBlank()) {
+                    churchEventId?.let {
+                        CalendarHelper.setAttendee(context, it, appSettings.dronePartnerEmail, state.hasDrone)
+                    }
+                    receptionEventId?.let {
+                        CalendarHelper.setAttendee(context, it, appSettings.dronePartnerEmail, state.hasDrone)
+                    }
                 }
 
                 repository.save(

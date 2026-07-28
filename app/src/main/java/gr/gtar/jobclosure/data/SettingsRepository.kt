@@ -16,6 +16,7 @@ data class AppSettings(
     val mapsApiKey: String = "",
     val reminderMinutesBefore: Int = 120,
     val defaultCalendarId: Long? = null,
+    val dronePartnerEmail: String = "john2000ta@gmail.com",
 )
 
 class SettingsRepository(private val context: Context) {
@@ -25,6 +26,7 @@ class SettingsRepository(private val context: Context) {
         val MAPS_API_KEY = stringPreferencesKey("maps_api_key")
         val REMINDER_MINUTES = intPreferencesKey("reminder_minutes_before")
         val DEFAULT_CALENDAR_ID = longPreferencesKey("default_calendar_id")
+        val DRONE_PARTNER_EMAIL = stringPreferencesKey("drone_partner_email")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
@@ -33,6 +35,7 @@ class SettingsRepository(private val context: Context) {
             mapsApiKey = prefs[Keys.MAPS_API_KEY] ?: "",
             reminderMinutesBefore = prefs[Keys.REMINDER_MINUTES] ?: 120,
             defaultCalendarId = prefs[Keys.DEFAULT_CALENDAR_ID],
+            dronePartnerEmail = prefs[Keys.DRONE_PARTNER_EMAIL] ?: "john2000ta@gmail.com",
         )
     }
 
@@ -50,5 +53,9 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setDefaultCalendarId(calendarId: Long) {
         context.dataStore.edit { it[Keys.DEFAULT_CALENDAR_ID] = calendarId }
+    }
+
+    suspend fun setDronePartnerEmail(email: String) {
+        context.dataStore.edit { it[Keys.DRONE_PARTNER_EMAIL] = email }
     }
 }

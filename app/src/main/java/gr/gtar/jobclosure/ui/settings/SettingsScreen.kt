@@ -35,6 +35,7 @@ fun SettingsScreen(
     var homeAddress by remember { mutableStateOf("") }
     var mapsApiKey by remember { mutableStateOf("") }
     var reminderMinutes by remember { mutableStateOf("120") }
+    var dronePartnerEmail by remember { mutableStateOf("") }
     var loaded by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -42,6 +43,7 @@ fun SettingsScreen(
         homeAddress = current.homeAddress
         mapsApiKey = current.mapsApiKey
         reminderMinutes = current.reminderMinutesBefore.toString()
+        dronePartnerEmail = current.dronePartnerEmail
         loaded = true
     }
 
@@ -102,6 +104,25 @@ fun SettingsScreen(
                 label = { Text("Υπενθύμιση πριν (λεπτά)") },
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
                 supportingText = { Text("Προεπιλογή: 120 λεπτά (2 ώρες) πριν το μυστήριο/δεξίωση") },
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            OutlinedTextField(
+                value = dronePartnerEmail,
+                onValueChange = {
+                    dronePartnerEmail = it
+                    viewModel.setDronePartnerEmail(it)
+                },
+                label = { Text("Email συνεργάτη για Drone") },
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Email),
+                supportingText = {
+                    Text(
+                        "Όταν ενεργοποιείς το Drone σε μια δουλειά, αυτός ο συνεργάτης προστίθεται ως " +
+                            "καλεσμένος στο event του ημερολογίου - έτσι το βλέπει και στο δικό του " +
+                            "ημερολόγιο, και το Google Calendar του στέλνει αυτόματα email πρόσκλησης " +
+                            "(χρειάζεται να διαλέξεις ημερολόγιο Google, όχι τοπικό, όταν αποθηκεύεις)."
+                    )
+                },
                 modifier = Modifier.fillMaxWidth(),
             )
 

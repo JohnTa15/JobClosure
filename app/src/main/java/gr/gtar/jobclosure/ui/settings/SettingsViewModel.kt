@@ -25,4 +25,8 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
     fun setReminderMinutesBefore(minutes: Int) {
         viewModelScope.launch { repository.setReminderMinutesBefore(minutes) }
     }
+
+    fun setDronePartnerEmail(email: String) {
+        viewModelScope.launch { repository.setDronePartnerEmail(email) }
+    }
 }
