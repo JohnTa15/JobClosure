@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- video camera body -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,40 h34 a4,4 0 0 1 4,4 v20 a4,4 0 0 1 -4,4 h-34 a4,4 0 0 1 -4,-4 v-20 a4,4 0 0 1 4,-4 z" />
+    <!-- viewfinder wedge -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M68,50 L86,40 L86,68 L68,58 z" />
+    <!-- lens -->
+    <path
+        android:fillColor="#1B3A4B"
+        android:pathData="M40,54 m-7,0 a7,7 0 1,0 14,0 a7,7 0 1,0 -14,0" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M40,54 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
+    <!-- recording dot -->
+    <path
+        android:fillColor="#E85D4A"
+        android:pathData="M79,33 m-5,0 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0" />
+</vector>
