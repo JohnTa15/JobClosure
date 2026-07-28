@@ -6,6 +6,9 @@ on:
       - '**'
   workflow_dispatch: {}
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -24,8 +27,19 @@ jobs:
       - name: Build debug APK
         run: ./gradlew assembleDebug --stacktrace
 
-      - name: Upload APK
+      - name: Upload APK as workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: jobclosure-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+
+      # Workflow artifacts aren't downloadable from the official GitHub mobile
+      # app, so also publish the APK as a Release asset - those download fine
+      # from the app.
+      - name: Publish APK as a GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: debug-latest
+          name: JobClosure debug build
+          body: Auto-built debug APK from the latest push to `${{ github.ref_name }}`.
+          files: app/build/outputs/apk/debug/app-debug.apk
