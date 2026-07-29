@@ -27,6 +27,11 @@ data class Booking(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
 
+    // Stable identifier shared with the desktop app's Google Calendar sync: it's what lets a
+    // booking's ceremony and reception events be recognised as one booking, and what a booking
+    // created on the phone is recognised by when it shows up (via Calendar sync) on the desktop.
+    val bookingId: String = java.util.UUID.randomUUID().toString(),
+
     val title: String,
     val type: BookingType,
     val notes: String = "",

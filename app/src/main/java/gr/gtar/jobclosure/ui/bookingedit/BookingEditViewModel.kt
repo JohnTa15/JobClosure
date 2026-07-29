@@ -9,6 +9,8 @@ import gr.gtar.jobclosure.data.Booking
 import gr.gtar.jobclosure.data.BookingRepository
 import gr.gtar.jobclosure.data.BookingType
 import gr.gtar.jobclosure.data.SettingsRepository
+import gr.gtar.jobclosure.shared.calendar.BookingMetadata
+import gr.gtar.jobclosure.shared.calendar.BookingMetadataCodec
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,6 +21,7 @@ import java.time.ZoneId
 
 data class BookingEditUiState(
     val id: Long = 0L,
+    val bookingId: String = java.util.UUID.randomUUID().toString(),
     val title: String = "",
     val type: BookingType = BookingType.WEDDING,
     val notes: String = "",
@@ -63,6 +66,7 @@ class BookingEditViewModel(
             _uiState.value = if (existing != null) {
                 BookingEditUiState(
                     id = existing.id,
+                    bookingId = existing.bookingId,
                     title = existing.title,
                     type = existing.type,
                     notes = existing.notes,
@@ -126,35 +130,54 @@ class BookingEditViewModel(
                 val appSettings = settingsRepository.settings.first()
                 val reminderMinutes = appSettings.reminderMinutesBefore
 
+                val churchDescription = BookingMetadataCodec.encode(
+                    booking.notes,
+                    BookingMetadata(
+                        bookingId = booking.bookingId,
+                        role = BookingMetadataCodec.ROLE_CEREMONY,
+                        type = booking.type.name,
+                        hasDrone = state.hasDrone,
+                        title = booking.title,
+                        venueName = booking.churchName,
+                    ),
+                )
                 val churchStartMillis = booking.ceremonyStart.toMillis()
                 val churchEndMillis = booking.ceremonyEnd.toMillis()
                 churchEventId = if (churchEventId != null) {
                     CalendarHelper.updateEvent(
                         context, churchEventId, eventTitle(state), booking.churchAddress,
-                        booking.notes, churchStartMillis, churchEndMillis, reminderMinutes,
+                        churchDescription, churchStartMillis, churchEndMillis, reminderMinutes,
                     )
                     churchEventId
                 } else {
                     CalendarHelper.insertEvent(
                         context, calendarId, eventTitle(state), booking.churchAddress,
-                        booking.notes, churchStartMillis, churchEndMillis, reminderMinutes,
+                        churchDescription, churchStartMillis, churchEndMillis, reminderMinutes,
                     )
                 }
 
                 if (state.hasReception && state.receptionStart != null) {
+                    val recDescription = BookingMetadataCodec.encode(
+                        "",
+                        BookingMetadata(
+                            bookingId = booking.bookingId,
+                            role = BookingMetadataCodec.ROLE_RECEPTION,
+                            venueName = booking.receptionVenueName,
+                        ),
+                    )
                     val recStartMillis = state.receptionStart.toMillis()
                     val recEndMillis = booking.receptionEnd!!.toMillis()
                     val recTitle = "Δεξίωση: ${state.title}"
                     receptionEventId = if (receptionEventId != null) {
                         CalendarHelper.updateEvent(
                             context, receptionEventId, recTitle, booking.receptionVenueAddress,
-                            booking.notes, recStartMillis, recEndMillis, reminderMinutes,
+                            recDescription, recStartMillis, recEndMillis, reminderMinutes,
                         )
                         receptionEventId
                     } else {
                         CalendarHelper.insertEvent(
                             context, calendarId, recTitle, booking.receptionVenueAddress,
-                            booking.notes, recStartMillis, recEndMillis, reminderMinutes,
+                            recDescription, recStartMillis, recEndMillis, reminderMinutes,
                         )
                     }
                 } else if (receptionEventId != null) {
@@ -209,6 +232,7 @@ class BookingEditViewModel(
 
 private fun BookingEditUiState.toBooking(): Booking = Booking(
     id = id,
+    bookingId = bookingId,
     title = title,
     type = type,
     notes = notes,

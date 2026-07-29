@@ -39,10 +39,6 @@ class SettingsViewModel(
         viewModelScope.launch { repository.setDronePartnerEmail(email) }
     }
 
-    fun setOpenAipApiKey(key: String) {
-        viewModelScope.launch { repository.setOpenAipApiKey(key) }
-    }
-
     fun setGitHubToken(token: String) {
         viewModelScope.launch { repository.setGitHubToken(token) }
     }

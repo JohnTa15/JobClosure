@@ -15,3 +15,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "JobClosure"
 include(":app")
+include(":shared")
+include(":desktopApp")

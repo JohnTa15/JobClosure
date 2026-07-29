@@ -9,8 +9,6 @@ import gr.gtar.jobclosure.data.BookingRepository
 import gr.gtar.jobclosure.data.SettingsRepository
 import gr.gtar.jobclosure.network.DroneConditionsRepository
 import gr.gtar.jobclosure.network.DroneConditionsResult
-import gr.gtar.jobclosure.network.DroneZoneRepository
-import gr.gtar.jobclosure.network.DroneZoneResult
 import gr.gtar.jobclosure.network.TravelTimeRepository
 import gr.gtar.jobclosure.network.TravelTimeResult
 import kotlinx.coroutines.async
@@ -30,9 +28,6 @@ data class BookingDetailUiState(
     val isLoadingDroneConditions: Boolean = false,
     val churchDroneConditions: DroneConditionsResult? = null,
     val receptionDroneConditions: DroneConditionsResult? = null,
-    val isLoadingDroneZones: Boolean = false,
-    val churchDroneZone: DroneZoneResult? = null,
-    val receptionDroneZone: DroneZoneResult? = null,
 )
 
 class BookingDetailViewModel(
@@ -41,7 +36,6 @@ class BookingDetailViewModel(
     private val settingsRepository: SettingsRepository,
     private val travelTimeRepository: TravelTimeRepository,
     private val droneConditionsRepository: DroneConditionsRepository,
-    private val droneZoneRepository: DroneZoneRepository,
     private val bookingId: Long,
 ) : AndroidViewModel(application) {
 
@@ -57,7 +51,6 @@ class BookingDetailViewModel(
                 refreshTravelTimes(booking, settings)
                 if (booking.hasDrone) {
                     refreshDroneConditions(booking, settings)
-                    refreshDroneZones(booking, settings)
                 }
             }
         }
@@ -69,7 +62,6 @@ class BookingDetailViewModel(
             refreshTravelTimes(booking, _uiState.value.settings)
             if (booking.hasDrone) {
                 refreshDroneConditions(booking, _uiState.value.settings)
-                refreshDroneZones(booking, _uiState.value.settings)
             }
         }
     }
@@ -121,33 +113,6 @@ class BookingDetailViewModel(
             isLoadingDroneConditions = false,
             churchDroneConditions = church,
             receptionDroneConditions = reception,
-        )
-    }
-
-    private suspend fun refreshDroneZones(booking: Booking, settings: AppSettings) {
-        _uiState.value = _uiState.value.copy(isLoadingDroneZones = true)
-
-        val churchDeferred = viewModelScope.async {
-            droneZoneRepository.getNearbyAirspaces(booking.churchAddress, settings.mapsApiKey, settings.openAipApiKey)
-        }
-        val receptionDeferred = viewModelScope.async {
-            if (booking.hasReception && booking.receptionVenueAddress.isNotBlank()) {
-                droneZoneRepository.getNearbyAirspaces(
-                    booking.receptionVenueAddress,
-                    settings.mapsApiKey,
-                    settings.openAipApiKey,
-                )
-            } else {
-                null
-            }
-        }
-        val church = churchDeferred.await()
-        val reception = receptionDeferred.await()
-
-        _uiState.value = _uiState.value.copy(
-            isLoadingDroneZones = false,
-            churchDroneZone = church,
-            receptionDroneZone = reception,
         )
     }
 }

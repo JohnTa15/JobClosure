@@ -6,7 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 
-@Database(entities = [Booking::class], version = 1, exportSchema = false)
+@Database(entities = [Booking::class], version = 2, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
 
@@ -22,7 +22,11 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "jobclosure.db"
-                ).build().also { INSTANCE = it }
+                )
+                    // No released version has data worth preserving across this schema change yet;
+                    // simplest to just recreate the table rather than write a one-column migration.
+                    .fallbackToDestructiveMigration()
+                    .build().also { INSTANCE = it }
             }
     }
 }

@@ -47,7 +47,6 @@ fun SettingsScreen(
     var mapsApiKey by remember { mutableStateOf("") }
     var reminderMinutes by remember { mutableStateOf("120") }
     var dronePartnerEmail by remember { mutableStateOf("") }
-    var openAipApiKey by remember { mutableStateOf("") }
     var gitHubToken by remember { mutableStateOf("") }
     var loaded by remember { mutableStateOf(false) }
 
@@ -57,7 +56,6 @@ fun SettingsScreen(
         mapsApiKey = current.mapsApiKey
         reminderMinutes = current.reminderMinutesBefore.toString()
         dronePartnerEmail = current.dronePartnerEmail
-        openAipApiKey = current.openAipApiKey
         gitHubToken = current.gitHubToken
         loaded = true
     }
@@ -139,24 +137,6 @@ fun SettingsScreen(
                             "καλεσμένος στο event του ημερολογίου - έτσι το βλέπει και στο δικό του " +
                             "ημερολόγιο, και το Google Calendar του στέλνει αυτόματα email πρόσκλησης " +
                             "(χρειάζεται να διαλέξεις ημερολόγιο Google, όχι τοπικό, όταν αποθηκεύεις)."
-                    )
-                },
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            OutlinedTextField(
-                value = openAipApiKey,
-                onValueChange = {
-                    openAipApiKey = it
-                    viewModel.setOpenAipApiKey(it)
-                },
-                label = { Text("Κλειδί OpenAIP API") },
-                supportingText = {
-                    Text(
-                        "Δωρεάν κλειδί από το openaip.net - χρησιμοποιείται για να ελέγχεται αν υπάρχουν " +
-                            "καταχωρημένες ζώνες (περιορισμένες/απαγορευμένες/ελεγχόμενες) κοντά στην " +
-                            "τοποθεσία όταν έχεις ενεργό το Drone. Ενημερωτικός έλεγχος μόνο - δεν " +
-                            "αντικαθιστά επίσημη πηγή πριν πετάξεις."
                     )
                 },
                 modifier = Modifier.fillMaxWidth(),

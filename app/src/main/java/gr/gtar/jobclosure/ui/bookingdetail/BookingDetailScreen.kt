@@ -23,7 +23,6 @@ import androidx.compose.material.icons.filled.Air
 import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GppGood
-import androidx.compose.material.icons.filled.GppMaybe
 import androidx.compose.material.icons.filled.Terrain
 import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material3.Card
@@ -46,7 +45,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import gr.gtar.jobclosure.data.Booking
 import gr.gtar.jobclosure.network.DroneConditionsResult
-import gr.gtar.jobclosure.network.DroneZoneResult
 import gr.gtar.jobclosure.network.TravelTimeResult
 import java.net.URLEncoder
 import java.time.format.DateTimeFormatter
@@ -71,14 +69,6 @@ private sealed interface DroneDisplayState {
     data class Success(val conditions: DroneConditionsResult.Success) : DroneDisplayState
     data class Error(val message: String) : DroneDisplayState
     data object Empty : DroneDisplayState
-}
-
-private sealed interface DroneZoneDisplayState {
-    data object Loading : DroneZoneDisplayState
-    data class Clear(val radiusKm: Int) : DroneZoneDisplayState
-    data class Caution(val airspaceNames: List<String>) : DroneZoneDisplayState
-    data class Error(val message: String) : DroneZoneDisplayState
-    data object Empty : DroneZoneDisplayState
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -145,8 +135,6 @@ fun BookingDetailScreen(
                 showDroneConditions = booking.hasDrone,
                 droneConditions = state.churchDroneConditions,
                 isLoadingDroneConditions = state.isLoadingDroneConditions,
-                droneZone = state.churchDroneZone,
-                isLoadingDroneZone = state.isLoadingDroneZones,
                 onNavigate = { openDirections(context, state.settings.homeAddress, booking.churchAddress) },
             )
 
@@ -163,8 +151,6 @@ fun BookingDetailScreen(
                     showDroneConditions = booking.hasDrone,
                     droneConditions = state.receptionDroneConditions,
                     isLoadingDroneConditions = state.isLoadingDroneConditions,
-                    droneZone = state.receptionDroneZone,
-                    isLoadingDroneZone = state.isLoadingDroneZones,
                     onNavigate = {
                         openDirections(context, booking.churchAddress, booking.receptionVenueAddress)
                     },
@@ -192,8 +178,6 @@ private fun LocationCard(
     showDroneConditions: Boolean = false,
     droneConditions: DroneConditionsResult? = null,
     isLoadingDroneConditions: Boolean = false,
-    droneZone: DroneZoneResult? = null,
-    isLoadingDroneZone: Boolean = false,
     onNavigate: () -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -278,64 +262,21 @@ private fun LocationCard(
                     }
                 }
 
-                val zoneDisplay: DroneZoneDisplayState = when {
-                    isLoadingDroneZone -> DroneZoneDisplayState.Loading
-                    droneZone is DroneZoneResult.Success && droneZone.nearbyAirspaceNames.isEmpty() ->
-                        DroneZoneDisplayState.Clear(radiusKm = 5)
-                    droneZone is DroneZoneResult.Success ->
-                        DroneZoneDisplayState.Caution(droneZone.nearbyAirspaceNames)
-                    droneZone is DroneZoneResult.Error -> DroneZoneDisplayState.Error(droneZone.message)
-                    else -> DroneZoneDisplayState.Empty
-                }
-                AnimatedContent(
-                    targetState = zoneDisplay,
-                    transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(120)) },
-                    label = "drone-zone",
-                    modifier = Modifier.padding(top = 4.dp),
-                ) { display ->
-                    when (display) {
-                        is DroneZoneDisplayState.Loading -> Row(verticalAlignment = Alignment.CenterVertically) {
-                            CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp).size(16.dp))
-                        }
-                        is DroneZoneDisplayState.Clear -> Column {
-                            DroneConditionRow(
-                                Icons.Filled.GppGood,
-                                "Δεν βρέθηκαν καταχωρημένες ζώνες σε ακτίνα ${display.radiusKm} χλμ (OpenAIP)",
-                            )
-                            ZoneCheckDisclaimer()
-                        }
-                        is DroneZoneDisplayState.Caution -> Column {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Icon(
-                                    Icons.Filled.GppMaybe,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.error,
-                                )
-                                Text(
-                                    "Βρέθηκαν κοντά: ${display.airspaceNames.joinToString(", ")}",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.error,
-                                )
-                            }
-                            ZoneCheckDisclaimer()
-                        }
-                        is DroneZoneDisplayState.Error ->
-                            Text(display.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                        DroneZoneDisplayState.Empty -> Row {}
-                    }
-                }
-
                 val droneAwareContext = LocalContext.current
                 OutlinedButton(
                     onClick = {
                         droneAwareContext.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(DAGR_URL)))
                     },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 ) {
                     Icon(Icons.Filled.GppGood, contentDescription = null, modifier = Modifier.size(18.dp))
                     Text("  Επίσημος έλεγχος στο Drone Aware - GR (ΥΠΑ/HASP)")
                 }
+                Text(
+                    "Πάντα έλεγχε εκεί πριν πετάξεις, ειδικά κοντά σε αεροδρόμια ή στρατιωτικές περιοχές.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
 
             if (address.isNotBlank()) {
@@ -354,17 +295,6 @@ private fun DroneConditionRow(icon: androidx.compose.ui.graphics.vector.ImageVec
         Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.tertiary)
         Text(text, style = MaterialTheme.typography.bodyMedium)
     }
-}
-
-@Composable
-private fun ZoneCheckDisclaimer() {
-    Text(
-        "Ενημερωτικός έλεγχος μόνο (βάση δεδομένων OpenAIP) - δεν αντικαθιστά το Drone Aware - GR " +
-            "(ΥΠΑ/HASP), που είναι ο επίσημος έλεγχος. Πάντα επιβεβαίωνε εκεί πριν πετάξεις, ειδικά " +
-            "κοντά σε αεροδρόμια ή στρατιωτικές περιοχές.",
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
 }
 
 /** Rough 8-point compass label from a wind direction in degrees. */

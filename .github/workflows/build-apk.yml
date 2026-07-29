@@ -1,4 +1,4 @@
-name: Build debug APK
+name: Build debug APK and desktop app
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  build-android:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,7 +25,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug --stacktrace
+        run: ./gradlew :app:assembleDebug --stacktrace
 
       - name: Compute version (matches the number Gradle baked into the APK)
         id: version
@@ -39,14 +39,74 @@ jobs:
       - name: Upload APK as workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: jobclosure-debug-apk
+          name: jobclosure-android-apk
           path: ${{ steps.version.outputs.renamed_apk }}
 
-      # Each build's asset gets a version-specific filename so a phone/browser that already
-      # downloaded a previous build never mistakes it for "already have this one" and reopens a
-      # stale copy instead of fetching the new APK. This step deletes whatever asset(s) are
-      # already attached to the rolling "debug-latest" release first, so the release still ends
-      # up with exactly one APK instead of accumulating every past build.
+  build-desktop-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Package Windows installer (.msi)
+        run: ./gradlew.bat :desktopApp:packageDistributionForCurrentOS --stacktrace
+
+      - name: Upload .msi as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jobclosure-windows-msi
+          path: desktopApp/build/compose/binaries/main/msi/*.msi
+
+  build-desktop-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Package macOS installer (.dmg)
+        run: ./gradlew :desktopApp:packageDistributionForCurrentOS --stacktrace
+
+      - name: Upload .dmg as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jobclosure-macos-dmg
+          path: desktopApp/build/compose/binaries/main/dmg/*.dmg
+
+  # Runs after every platform build has produced its artifact, and does the actual GitHub Release
+  # publishing once - avoids three jobs racing to create/update the same "debug-latest" release.
+  publish-release:
+    needs: [build-android, build-desktop-windows, build-desktop-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all platform artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Compute version
+        id: version
+        run: echo "version_name=1.0.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+      # Each build's assets get a version-specific filename so a phone/browser/desktop that
+      # already downloaded a previous build never mistakes it for "already have this one" and
+      # reopens a stale copy instead of fetching the new one. This step deletes whatever asset(s)
+      # are already attached to the rolling "debug-latest" release first, so the release still
+      # ends up with exactly one of each file instead of accumulating every past build.
       - name: Remove previous release asset(s)
         env:
           GH_TOKEN: ${{ github.token }}
@@ -57,8 +117,8 @@ jobs:
           done || true
 
       # Workflow artifacts aren't downloadable from the official GitHub mobile app, so also
-      # publish the APK as a Release asset - those download fine from the app.
-      - name: Publish APK as a GitHub Release
+      # publish everything as Release assets - those download fine from the app and from a browser.
+      - name: Publish APK + installers as a GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: debug-latest
@@ -66,4 +126,11 @@ jobs:
           body: |
             Έκδοση ${{ steps.version.outputs.version_name }} (build #${{ github.run_number }})
             Auto-built από το push `${{ github.sha }}` στο branch `${{ github.ref_name }}`.
-          files: ${{ steps.version.outputs.renamed_apk }}
+
+            - Android: αρχείο .apk
+            - Windows: αρχείο .msi
+            - macOS: αρχείο .dmg
+          files: |
+            release-assets/jobclosure-android-apk/*.apk
+            release-assets/jobclosure-windows-msi/*.msi
+            release-assets/jobclosure-macos-dmg/*.dmg
