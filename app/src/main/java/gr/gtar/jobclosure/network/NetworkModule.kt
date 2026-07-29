@@ -34,12 +34,24 @@ object NetworkModule {
             .build()
     }
 
+    private val openAipRetrofit: Retrofit by lazy {
+        Retrofit.Builder()
+            .baseUrl(OpenAipApi.BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+    }
+
     val directionsApi: DirectionsApi by lazy { googleMapsRetrofit.create(DirectionsApi::class.java) }
     val geocodingApi: GeocodingApi by lazy { googleMapsRetrofit.create(GeocodingApi::class.java) }
     val openMeteoApi: OpenMeteoApi by lazy { openMeteoRetrofit.create(OpenMeteoApi::class.java) }
+    val openAipApi: OpenAipApi by lazy { openAipRetrofit.create(OpenAipApi::class.java) }
 
     val travelTimeRepository: TravelTimeRepository by lazy { TravelTimeRepository(directionsApi) }
     val droneConditionsRepository: DroneConditionsRepository by lazy {
         DroneConditionsRepository(geocodingApi, openMeteoApi)
+    }
+    val droneZoneRepository: DroneZoneRepository by lazy {
+        DroneZoneRepository(geocodingApi, openAipApi)
     }
 }

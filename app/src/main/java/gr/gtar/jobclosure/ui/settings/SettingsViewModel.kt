@@ -29,4 +29,8 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
     fun setDronePartnerEmail(email: String) {
         viewModelScope.launch { repository.setDronePartnerEmail(email) }
     }
+
+    fun setOpenAipApiKey(key: String) {
+        viewModelScope.launch { repository.setOpenAipApiKey(key) }
+    }
 }
