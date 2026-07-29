@@ -45,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import gr.gtar.jobclosure.data.Booking
+import gr.gtar.jobclosure.data.MapsProvider
 import gr.gtar.jobclosure.network.DroneConditionsResult
 import gr.gtar.jobclosure.network.TravelTimeResult
 import java.net.URLEncoder
@@ -154,7 +155,12 @@ fun BookingDetailScreen(
                 showDroneConditions = booking.hasDrone,
                 droneConditions = state.churchDroneConditions,
                 isLoadingDroneConditions = state.isLoadingDroneConditions,
-                onNavigate = { openDirections(context, state.settings.homeAddress, booking.churchAddress) },
+                onNavigate = {
+                    openDirections(
+                        context, state.settings.homeAddress, booking.churchAddress,
+                        state.settings.mapsProvider, state.homeToChurch,
+                    )
+                },
             )
 
             if (booking.hasReception) {
@@ -171,7 +177,10 @@ fun BookingDetailScreen(
                     droneConditions = state.receptionDroneConditions,
                     isLoadingDroneConditions = state.isLoadingDroneConditions,
                     onNavigate = {
-                        openDirections(context, booking.churchAddress, booking.receptionVenueAddress)
+                        openDirections(
+                            context, booking.churchAddress, booking.receptionVenueAddress,
+                            state.settings.mapsProvider, state.churchToReception,
+                        )
                     },
                 )
             }
@@ -323,12 +332,38 @@ private fun windDirectionLabel(degrees: Double): String {
     return directions[index]
 }
 
-private fun openDirections(context: Context, origin: String, destination: String) {
-    val uri = Uri.parse(
-        "https://www.google.com/maps/dir/?api=1" +
-            "&origin=${URLEncoder.encode(origin, "UTF-8")}" +
-            "&destination=${URLEncoder.encode(destination, "UTF-8")}" +
-            "&travelmode=driving"
-    )
+private fun openDirections(
+    context: Context,
+    origin: String,
+    destination: String,
+    provider: MapsProvider,
+    travelResult: TravelTimeResult?,
+) {
+    val uri = if (provider == MapsProvider.OPENSTREETMAP) {
+        if (
+            travelResult is TravelTimeResult.Success &&
+            travelResult.originLat != null && travelResult.originLng != null &&
+            travelResult.destinationLat != null && travelResult.destinationLng != null
+        ) {
+            // Coordinates already geocoded (via Nominatim) while computing the travel time -
+            // reuse them instead of re-geocoding just for the link.
+            Uri.parse(
+                "https://www.openstreetmap.org/directions?engine=fossgis_osrm_car" +
+                    "&route=${travelResult.originLat},${travelResult.originLng}" +
+                    ";${travelResult.destinationLat},${travelResult.destinationLng}"
+            )
+        } else {
+            // No coordinates on hand yet (travel time still loading or failed) - fall back to a
+            // plain address search rather than blocking the button on a fresh geocode call.
+            Uri.parse("https://www.openstreetmap.org/search?query=${URLEncoder.encode(destination, "UTF-8")}")
+        }
+    } else {
+        Uri.parse(
+            "https://www.google.com/maps/dir/?api=1" +
+                "&origin=${URLEncoder.encode(origin, "UTF-8")}" +
+                "&destination=${URLEncoder.encode(destination, "UTF-8")}" +
+                "&travelmode=driving"
+        )
+    }
     context.startActivity(Intent(Intent.ACTION_VIEW, uri))
 }

@@ -70,13 +70,16 @@ class BookingDetailViewModel(
         _uiState.value = _uiState.value.copy(isLoadingTravelTimes = true)
 
         val homeToChurchDeferred = viewModelScope.async {
-            travelTimeRepository.getTravelTime(settings.homeAddress, booking.churchAddress, settings.mapsApiKey)
+            travelTimeRepository.getTravelTime(
+                settings.homeAddress, booking.churchAddress, settings.mapsProvider, settings.mapsApiKey,
+            )
         }
         val churchToReceptionDeferred = viewModelScope.async {
             if (booking.hasReception && booking.receptionVenueAddress.isNotBlank()) {
                 travelTimeRepository.getTravelTime(
                     booking.churchAddress,
                     booking.receptionVenueAddress,
+                    settings.mapsProvider,
                     settings.mapsApiKey,
                 )
             } else {
@@ -97,11 +100,13 @@ class BookingDetailViewModel(
         _uiState.value = _uiState.value.copy(isLoadingDroneConditions = true)
 
         val churchDeferred = viewModelScope.async {
-            droneConditionsRepository.getConditions(booking.churchAddress, settings.mapsApiKey)
+            droneConditionsRepository.getConditions(booking.churchAddress, settings.mapsProvider, settings.mapsApiKey)
         }
         val receptionDeferred = viewModelScope.async {
             if (booking.hasReception && booking.receptionVenueAddress.isNotBlank()) {
-                droneConditionsRepository.getConditions(booking.receptionVenueAddress, settings.mapsApiKey)
+                droneConditionsRepository.getConditions(
+                    booking.receptionVenueAddress, settings.mapsProvider, settings.mapsApiKey,
+                )
             } else {
                 null
             }

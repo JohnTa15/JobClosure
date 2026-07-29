@@ -1,5 +1,7 @@
 package gr.gtar.jobclosure.network
 
+import gr.gtar.jobclosure.data.MapsProvider
+
 sealed interface DroneConditionsResult {
     data class Success(
         val temperatureC: Double,
@@ -14,22 +16,22 @@ sealed interface DroneConditionsResult {
 
 class DroneConditionsRepository(
     private val geocodingApi: GeocodingApi,
+    private val nominatimApi: NominatimApi,
     private val openMeteoApi: OpenMeteoApi,
 ) {
-    suspend fun getConditions(address: String, mapsApiKey: String): DroneConditionsResult {
+    suspend fun getConditions(address: String, provider: MapsProvider, googleApiKey: String): DroneConditionsResult {
         if (address.isBlank()) return DroneConditionsResult.Error("Λείπει διεύθυνση")
-        if (mapsApiKey.isBlank()) {
+        if (provider == MapsProvider.GOOGLE && googleApiKey.isBlank()) {
             return DroneConditionsResult.Error("Δεν έχει οριστεί κλειδί Google Maps API (Ρυθμίσεις)")
         }
 
         return try {
-            val geocoding = geocodingApi.geocode(address, mapsApiKey)
-            val location = geocoding.results.firstOrNull()?.geometry?.location
+            val location = geocode(address, provider, googleApiKey)
                 ?: return DroneConditionsResult.Error("Δεν βρέθηκε τοποθεσία για τη διεύθυνση")
 
-            val weather = openMeteoApi.getCurrentWeather(location.lat, location.lng).currentWeather
+            val weather = openMeteoApi.getCurrentWeather(location.first, location.second).currentWeather
                 ?: return DroneConditionsResult.Error("Δεν βρέθηκαν δεδομένα καιρού")
-            val elevation = openMeteoApi.getElevation(location.lat, location.lng).elevation.firstOrNull()
+            val elevation = openMeteoApi.getElevation(location.first, location.second).elevation.firstOrNull()
 
             DroneConditionsResult.Success(
                 temperatureC = weather.temperature,
@@ -42,6 +44,20 @@ class DroneConditionsRepository(
             DroneConditionsResult.Error("Αποτυχία σύνδεσης: ${e.message ?: "άγνωστο σφάλμα"}")
         }
     }
+
+    /** Returns (lat, lon), or null if the chosen provider found nothing. */
+    private suspend fun geocode(address: String, provider: MapsProvider, googleApiKey: String): Pair<Double, Double>? =
+        when (provider) {
+            MapsProvider.GOOGLE ->
+                geocodingApi.geocode(address, googleApiKey).results.firstOrNull()?.geometry?.location
+                    ?.let { it.lat to it.lng }
+            MapsProvider.OPENSTREETMAP ->
+                nominatimApi.search(address).firstOrNull()?.let { result ->
+                    val lat = result.lat.toDoubleOrNull()
+                    val lon = result.lon.toDoubleOrNull()
+                    if (lat != null && lon != null) lat to lon else null
+                }
+        }
 
     private fun weatherCodeToGreek(code: Int): String = when (code) {
         0 -> "Καθαρός ουρανός"

@@ -11,9 +11,17 @@ import kotlinx.coroutines.flow.map
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
 
+/** Which service resolves addresses/routes: Google Maps (needs an API key) or the free,
+ *  key-less OpenStreetMap stack (Nominatim for geocoding, OSRM for routing). */
+enum class MapsProvider {
+    GOOGLE,
+    OPENSTREETMAP,
+}
+
 data class AppSettings(
     val homeAddress: String = "",
     val mapsApiKey: String = "",
+    val mapsProvider: MapsProvider = MapsProvider.OPENSTREETMAP,
     val reminderMinutesBefore: Int = 120,
     val defaultCalendarId: Long? = null,
     val dronePartnerEmail: String = "",
@@ -25,6 +33,7 @@ class SettingsRepository(private val context: Context) {
     private object Keys {
         val HOME_ADDRESS = stringPreferencesKey("home_address")
         val MAPS_API_KEY = stringPreferencesKey("maps_api_key")
+        val MAPS_PROVIDER = stringPreferencesKey("maps_provider")
         val REMINDER_MINUTES = intPreferencesKey("reminder_minutes_before")
         val DEFAULT_CALENDAR_ID = longPreferencesKey("default_calendar_id")
         val DRONE_PARTNER_EMAIL = stringPreferencesKey("drone_partner_email")
@@ -32,9 +41,16 @@ class SettingsRepository(private val context: Context) {
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
+        val mapsApiKey = prefs[Keys.MAPS_API_KEY] ?: ""
         AppSettings(
             homeAddress = prefs[Keys.HOME_ADDRESS] ?: "",
-            mapsApiKey = prefs[Keys.MAPS_API_KEY] ?: "",
+            mapsApiKey = mapsApiKey,
+            // No explicit choice yet: default to Google only if a key from before this setting
+            // existed is already sitting there, otherwise OpenStreetMap works immediately with no
+            // setup at all.
+            mapsProvider = prefs[Keys.MAPS_PROVIDER]?.let { stored ->
+                runCatching { MapsProvider.valueOf(stored) }.getOrNull()
+            } ?: if (mapsApiKey.isNotBlank()) MapsProvider.GOOGLE else MapsProvider.OPENSTREETMAP,
             reminderMinutesBefore = prefs[Keys.REMINDER_MINUTES] ?: 120,
             defaultCalendarId = prefs[Keys.DEFAULT_CALENDAR_ID],
             dronePartnerEmail = prefs[Keys.DRONE_PARTNER_EMAIL] ?: "",
@@ -48,6 +64,10 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setMapsApiKey(key: String) {
         context.dataStore.edit { it[Keys.MAPS_API_KEY] = key }
+    }
+
+    suspend fun setMapsProvider(provider: MapsProvider) {
+        context.dataStore.edit { it[Keys.MAPS_PROVIDER] = provider.name }
     }
 
     suspend fun setReminderMinutesBefore(minutes: Int) {

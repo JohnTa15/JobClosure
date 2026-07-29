@@ -2,6 +2,7 @@ package gr.gtar.jobclosure.ui.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -16,6 +17,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -37,6 +39,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import gr.gtar.jobclosure.BuildConfig
+import gr.gtar.jobclosure.data.MapsProvider
 import gr.gtar.jobclosure.update.ApkUpdateManager
 import gr.gtar.jobclosure.update.DownloadResult
 import gr.gtar.jobclosure.update.UpdateCheckResult
@@ -51,6 +54,7 @@ fun SettingsScreen(
 ) {
     var homeAddress by remember { mutableStateOf("") }
     var mapsApiKey by remember { mutableStateOf("") }
+    var mapsProvider by remember { mutableStateOf(MapsProvider.OPENSTREETMAP) }
     var reminderMinutes by remember { mutableStateOf("120") }
     var dronePartnerEmail by remember { mutableStateOf("") }
     var gitHubToken by remember { mutableStateOf("") }
@@ -60,6 +64,7 @@ fun SettingsScreen(
         val current = viewModel.settings.first()
         homeAddress = current.homeAddress
         mapsApiKey = current.mapsApiKey
+        mapsProvider = current.mapsProvider
         reminderMinutes = current.reminderMinutesBefore.toString()
         dronePartnerEmail = current.dronePartnerEmail
         gitHubToken = current.gitHubToken
@@ -101,21 +106,50 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            OutlinedTextField(
-                value = mapsApiKey,
-                onValueChange = {
-                    mapsApiKey = it
-                    viewModel.setMapsApiKey(it)
-                },
-                label = { Text("Κλειδί Google Maps API") },
-                supportingText = {
-                    Text(
-                        "Χρειάζεται ένα Google Cloud API key με ενεργοποιημένο το Directions API " +
-                            "για να υπολογίζεται ο χρόνος διαδρομής. Αποθηκεύεται μόνο τοπικά στη συσκευή."
-                    )
-                },
-                modifier = Modifier.fillMaxWidth(),
-            )
+            Text("Πάροχος χαρτών / διαδρομών", style = MaterialTheme.typography.titleSmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = mapsProvider == MapsProvider.OPENSTREETMAP,
+                    onClick = {
+                        mapsProvider = MapsProvider.OPENSTREETMAP
+                        viewModel.setMapsProvider(MapsProvider.OPENSTREETMAP)
+                    },
+                    label = { Text("OpenStreetMap (δωρεάν)") },
+                )
+                FilterChip(
+                    selected = mapsProvider == MapsProvider.GOOGLE,
+                    onClick = {
+                        mapsProvider = MapsProvider.GOOGLE
+                        viewModel.setMapsProvider(MapsProvider.GOOGLE)
+                    },
+                    label = { Text("Google Maps") },
+                )
+            }
+
+            if (mapsProvider == MapsProvider.OPENSTREETMAP) {
+                Text(
+                    "Ο χρόνος διαδρομής και οι συνθήκες για Drone υπολογίζονται μέσω OpenStreetMap " +
+                        "(Nominatim + OSRM) - δωρεάν, χωρίς κλειδί API.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                OutlinedTextField(
+                    value = mapsApiKey,
+                    onValueChange = {
+                        mapsApiKey = it
+                        viewModel.setMapsApiKey(it)
+                    },
+                    label = { Text("Κλειδί Google Maps API") },
+                    supportingText = {
+                        Text(
+                            "Χρειάζεται ένα Google Cloud API key με ενεργοποιημένα τα Directions API και " +
+                                "Geocoding API. Αποθηκεύεται μόνο τοπικά στη συσκευή."
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
 
             OutlinedTextField(
                 value = reminderMinutes,

@@ -43,14 +43,34 @@ object NetworkModule {
             .build()
     }
 
+    private val nominatimRetrofit: Retrofit by lazy {
+        Retrofit.Builder()
+            .baseUrl(NominatimApi.BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+    }
+
+    private val osrmRetrofit: Retrofit by lazy {
+        Retrofit.Builder()
+            .baseUrl(OsrmApi.BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+    }
+
     val directionsApi: DirectionsApi by lazy { googleMapsRetrofit.create(DirectionsApi::class.java) }
     val geocodingApi: GeocodingApi by lazy { googleMapsRetrofit.create(GeocodingApi::class.java) }
     val openMeteoApi: OpenMeteoApi by lazy { openMeteoRetrofit.create(OpenMeteoApi::class.java) }
     val gitHubReleaseApi: GitHubReleaseApi by lazy { gitHubRetrofit.create(GitHubReleaseApi::class.java) }
+    val nominatimApi: NominatimApi by lazy { nominatimRetrofit.create(NominatimApi::class.java) }
+    val osrmApi: OsrmApi by lazy { osrmRetrofit.create(OsrmApi::class.java) }
 
-    val travelTimeRepository: TravelTimeRepository by lazy { TravelTimeRepository(directionsApi) }
+    val travelTimeRepository: TravelTimeRepository by lazy {
+        TravelTimeRepository(directionsApi, nominatimApi, osrmApi)
+    }
     val droneConditionsRepository: DroneConditionsRepository by lazy {
-        DroneConditionsRepository(geocodingApi, openMeteoApi)
+        DroneConditionsRepository(geocodingApi, nominatimApi, openMeteoApi)
     }
     val updateRepository: UpdateRepository by lazy { UpdateRepository(gitHubReleaseApi) }
 }

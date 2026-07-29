@@ -3,6 +3,7 @@ package gr.gtar.jobclosure.ui.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import gr.gtar.jobclosure.data.AppSettings
+import gr.gtar.jobclosure.data.MapsProvider
 import gr.gtar.jobclosure.data.SettingsRepository
 import gr.gtar.jobclosure.update.UpdateCheckResult
 import gr.gtar.jobclosure.update.UpdateRepository
@@ -29,6 +30,10 @@ class SettingsViewModel(
 
     fun setMapsApiKey(key: String) {
         viewModelScope.launch { repository.setMapsApiKey(key) }
+    }
+
+    fun setMapsProvider(provider: MapsProvider) {
+        viewModelScope.launch { repository.setMapsProvider(provider) }
     }
 
     fun setReminderMinutesBefore(minutes: Int) {
