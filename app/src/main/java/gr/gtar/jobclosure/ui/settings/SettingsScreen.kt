@@ -27,6 +27,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -34,8 +35,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import gr.gtar.jobclosure.BuildConfig
 import gr.gtar.jobclosure.update.ApkUpdateManager
+import gr.gtar.jobclosure.update.DownloadResult
 import gr.gtar.jobclosure.update.UpdateCheckResult
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -142,6 +145,8 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
 
+            val updateStatusForToken by viewModel.updateStatus.collectAsState()
+
             OutlinedTextField(
                 value = gitHubToken,
                 onValueChange = {
@@ -160,6 +165,28 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
 
+            if (gitHubToken.isNotBlank()) {
+                when (updateStatusForToken) {
+                    is UpdateCheckResult.UpdateAvailable, UpdateCheckResult.UpToDate -> Text(
+                        "✓ Το token είναι αποθηκευμένο και επιβεβαιώθηκε ότι λειτουργεί.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.tertiary,
+                    )
+                    is UpdateCheckResult.Error -> Text(
+                        "Το token είναι αποθηκευμένο, αλλά ο τελευταίος έλεγχος ενημέρωσης απέτυχε - " +
+                            "έλεγξε αν είναι σωστό.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                    null -> Text(
+                        "Το token είναι αποθηκευμένο. Πάτα \"Έλεγχος για ενημέρωση τώρα\" για να " +
+                            "επιβεβαιωθεί ότι λειτουργεί.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
             Text(
                 "Η προσθήκη στο ημερολόγιο γίνεται μέσω του ημερολογίου της συσκευής, οπότε δουλεύει " +
                     "είτε χρησιμοποιείς Google Calendar είτε Samsung Calendar - επίλεξε το ημερολόγιο " +
@@ -174,9 +201,11 @@ fun SettingsScreen(
 @Composable
 private fun UpdateSection(viewModel: SettingsViewModel) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val updateStatus by viewModel.updateStatus.collectAsState()
     val settings by viewModel.settings.collectAsState()
     var isDownloading by remember { mutableStateOf(false) }
+    var downloadError by remember { mutableStateOf<String?>(null) }
     var showInstallPermissionDialog by remember { mutableStateOf(false) }
 
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -196,10 +225,23 @@ private fun UpdateSection(viewModel: SettingsViewModel) {
                             if (!ApkUpdateManager.canInstallUnknownApps(context)) {
                                 showInstallPermissionDialog = true
                             } else {
+                                downloadError = null
                                 isDownloading = true
-                                ApkUpdateManager.downloadUpdate(context, status.downloadUrl, settings.gitHubToken) { uri ->
-                                    isDownloading = false
-                                    ApkUpdateManager.promptInstall(context, uri)
+                                scope.launch {
+                                    when (
+                                        val result = ApkUpdateManager.downloadUpdate(
+                                            context, status.downloadUrl, settings.gitHubToken,
+                                        )
+                                    ) {
+                                        is DownloadResult.Success -> {
+                                            isDownloading = false
+                                            ApkUpdateManager.promptInstall(context, result.apkUri)
+                                        }
+                                        is DownloadResult.Error -> {
+                                            isDownloading = false
+                                            downloadError = result.message
+                                        }
+                                    }
                                 }
                             }
                         },
@@ -207,6 +249,9 @@ private fun UpdateSection(viewModel: SettingsViewModel) {
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(if (isDownloading) "Λήψη..." else "Λήψη & Εγκατάσταση")
+                    }
+                    downloadError?.let {
+                        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                     }
                 }
                 UpdateCheckResult.UpToDate -> Text(
