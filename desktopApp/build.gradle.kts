@@ -40,7 +40,10 @@ compose.desktop {
             targetFormats(TargetFormat.Msi, TargetFormat.Dmg, TargetFormat.Deb)
             packageName = "JobClosure"
             packageVersion = "1.0.${ciBuildNumber.coerceAtLeast(1)}"
-            description = "JobClosure - Κρατήσεις γάμων, βαφτίσεων και εκδηλώσεων"
+            // jpackage's Windows/MSI packaging embeds this into a Win32 resource version-info
+            // structure, which has historically had trouble with non-ASCII text - keep it plain
+            // ASCII rather than Greek to avoid that failure mode.
+            description = "JobClosure - wedding, baptism and event booking tracker"
             vendor = "JobClosure"
         }
     }
