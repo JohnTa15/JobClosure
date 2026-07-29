@@ -47,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import gr.gtar.jobclosure.calendar.CalendarInfo
 import gr.gtar.jobclosure.data.BookingType
+import gr.gtar.jobclosure.ui.components.AutocompleteAddressField
 import gr.gtar.jobclosure.ui.components.DateTimePickerField
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -139,17 +140,26 @@ fun BookingEditScreen(
             HorizontalDivider()
             Text("Εκκλησία / Μυστήριο", style = MaterialTheme.typography.titleMedium)
 
-            OutlinedTextField(
+            AutocompleteAddressField(
                 value = state.churchName,
                 onValueChange = { value -> viewModel.update { it.copy(churchName = value) } },
-                label = { Text("Όνομα εκκλησίας") },
-                modifier = Modifier.fillMaxWidth(),
+                label = "Όνομα εκκλησίας",
+                provider = state.mapsProvider,
+                googleApiKey = state.mapsApiKey,
+                placeSearchRepository = viewModel.placeSearchRepository,
+                onSuggestionSelected = { suggestion ->
+                    viewModel.update {
+                        it.copy(churchName = suggestion.name, churchAddress = suggestion.fullText)
+                    }
+                },
             )
-            OutlinedTextField(
+            AutocompleteAddressField(
                 value = state.churchAddress,
                 onValueChange = { value -> viewModel.update { it.copy(churchAddress = value) } },
-                label = { Text("Διεύθυνση εκκλησίας") },
-                modifier = Modifier.fillMaxWidth(),
+                label = "Διεύθυνση εκκλησίας",
+                provider = state.mapsProvider,
+                googleApiKey = state.mapsApiKey,
+                placeSearchRepository = viewModel.placeSearchRepository,
             )
             DateTimePickerField(
                 label = "Ώρα μυστηρίου",
@@ -192,17 +202,26 @@ fun BookingEditScreen(
                 exit = shrinkVertically() + fadeOut(),
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(
+                    AutocompleteAddressField(
                         value = state.receptionVenueName,
                         onValueChange = { value -> viewModel.update { it.copy(receptionVenueName = value) } },
-                        label = { Text("Όνομα κέντρου δεξίωσης") },
-                        modifier = Modifier.fillMaxWidth(),
+                        label = "Όνομα κέντρου δεξίωσης",
+                        provider = state.mapsProvider,
+                        googleApiKey = state.mapsApiKey,
+                        placeSearchRepository = viewModel.placeSearchRepository,
+                        onSuggestionSelected = { suggestion ->
+                            viewModel.update {
+                                it.copy(receptionVenueName = suggestion.name, receptionVenueAddress = suggestion.fullText)
+                            }
+                        },
                     )
-                    OutlinedTextField(
+                    AutocompleteAddressField(
                         value = state.receptionVenueAddress,
                         onValueChange = { value -> viewModel.update { it.copy(receptionVenueAddress = value) } },
-                        label = { Text("Διεύθυνση κέντρου") },
-                        modifier = Modifier.fillMaxWidth(),
+                        label = "Διεύθυνση κέντρου",
+                        provider = state.mapsProvider,
+                        googleApiKey = state.mapsApiKey,
+                        placeSearchRepository = viewModel.placeSearchRepository,
                     )
                     DateTimePickerField(
                         label = "Ώρα δεξίωσης",

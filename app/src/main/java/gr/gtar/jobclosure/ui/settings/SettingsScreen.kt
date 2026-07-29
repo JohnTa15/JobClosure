@@ -40,6 +40,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import gr.gtar.jobclosure.BuildConfig
 import gr.gtar.jobclosure.data.MapsProvider
+import gr.gtar.jobclosure.ui.components.AutocompleteAddressField
 import gr.gtar.jobclosure.update.ApkUpdateManager
 import gr.gtar.jobclosure.update.DownloadResult
 import gr.gtar.jobclosure.update.UpdateCheckResult
@@ -95,15 +96,21 @@ fun SettingsScreen(
         ) {
             UpdateSection(viewModel)
 
-            OutlinedTextField(
+            AutocompleteAddressField(
                 value = homeAddress,
                 onValueChange = {
                     homeAddress = it
                     viewModel.setHomeAddress(it)
                 },
-                label = { Text("Διεύθυνση σπιτιού") },
-                supportingText = { Text("Χρησιμοποιείται ως αφετηρία για τον υπολογισμό χρόνου διαδρομής") },
-                modifier = Modifier.fillMaxWidth(),
+                label = "Διεύθυνση σπιτιού",
+                provider = mapsProvider,
+                googleApiKey = mapsApiKey,
+                placeSearchRepository = viewModel.placeSearchRepository,
+            )
+            Text(
+                "Χρησιμοποιείται ως αφετηρία για τον υπολογισμό χρόνου διαδρομής",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
             Text("Πάροχος χαρτών / διαδρομών", style = MaterialTheme.typography.titleSmall)

@@ -61,6 +61,7 @@ object NetworkModule {
 
     val directionsApi: DirectionsApi by lazy { googleMapsRetrofit.create(DirectionsApi::class.java) }
     val geocodingApi: GeocodingApi by lazy { googleMapsRetrofit.create(GeocodingApi::class.java) }
+    val placesApi: PlacesApi by lazy { googleMapsRetrofit.create(PlacesApi::class.java) }
     val openMeteoApi: OpenMeteoApi by lazy { openMeteoRetrofit.create(OpenMeteoApi::class.java) }
     val gitHubReleaseApi: GitHubReleaseApi by lazy { gitHubRetrofit.create(GitHubReleaseApi::class.java) }
     val nominatimApi: NominatimApi by lazy { nominatimRetrofit.create(NominatimApi::class.java) }
@@ -72,5 +73,6 @@ object NetworkModule {
     val droneConditionsRepository: DroneConditionsRepository by lazy {
         DroneConditionsRepository(geocodingApi, nominatimApi, openMeteoApi)
     }
+    val placeSearchRepository: PlaceSearchRepository by lazy { PlaceSearchRepository(nominatimApi, placesApi) }
     val updateRepository: UpdateRepository by lazy { UpdateRepository(gitHubReleaseApi) }
 }

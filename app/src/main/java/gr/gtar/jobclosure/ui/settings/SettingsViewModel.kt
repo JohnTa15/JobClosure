@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import gr.gtar.jobclosure.data.AppSettings
 import gr.gtar.jobclosure.data.MapsProvider
 import gr.gtar.jobclosure.data.SettingsRepository
+import gr.gtar.jobclosure.network.PlaceSearchRepository
 import gr.gtar.jobclosure.update.UpdateCheckResult
 import gr.gtar.jobclosure.update.UpdateRepository
 import gr.gtar.jobclosure.update.UpdateStatusHolder
@@ -17,6 +18,7 @@ import kotlinx.coroutines.launch
 class SettingsViewModel(
     private val repository: SettingsRepository,
     private val updateRepository: UpdateRepository,
+    val placeSearchRepository: PlaceSearchRepository,
 ) : ViewModel() {
 
     val settings: StateFlow<AppSettings> =

@@ -8,7 +8,9 @@ import gr.gtar.jobclosure.calendar.CalendarInfo
 import gr.gtar.jobclosure.data.Booking
 import gr.gtar.jobclosure.data.BookingRepository
 import gr.gtar.jobclosure.data.BookingType
+import gr.gtar.jobclosure.data.MapsProvider
 import gr.gtar.jobclosure.data.SettingsRepository
+import gr.gtar.jobclosure.network.PlaceSearchRepository
 import gr.gtar.jobclosure.shared.calendar.BookingMetadata
 import gr.gtar.jobclosure.shared.calendar.BookingMetadataCodec
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,6 +48,8 @@ data class BookingEditUiState(
     val saved: Boolean = false,
     val churchCalendarEventId: Long? = null,
     val receptionCalendarEventId: Long? = null,
+    val mapsProvider: MapsProvider = MapsProvider.OPENSTREETMAP,
+    val mapsApiKey: String = "",
 ) {
     val isChurchSacrament get() = type.isChurchSacrament
 }
@@ -54,6 +58,7 @@ class BookingEditViewModel(
     application: Application,
     private val repository: BookingRepository,
     private val settingsRepository: SettingsRepository,
+    val placeSearchRepository: PlaceSearchRepository,
     private val bookingId: Long?,
 ) : AndroidViewModel(application) {
 
@@ -88,12 +93,16 @@ class BookingEditViewModel(
                     isLoading = false,
                     churchCalendarEventId = existing.churchCalendarEventId,
                     receptionCalendarEventId = existing.receptionCalendarEventId,
+                    mapsProvider = settings.mapsProvider,
+                    mapsApiKey = settings.mapsApiKey,
                 )
             } else {
                 _uiState.value.copy(
                     selectedCalendarId = settings.defaultCalendarId,
                     availableCalendars = calendars,
                     isLoading = false,
+                    mapsProvider = settings.mapsProvider,
+                    mapsApiKey = settings.mapsApiKey,
                 )
             }
         }
