@@ -3,6 +3,7 @@ package gr.gtar.jobclosure.network
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 import retrofit2.http.GET
+import retrofit2.http.Header
 import retrofit2.http.Path
 
 interface GitHubReleaseApi {
@@ -11,6 +12,7 @@ interface GitHubReleaseApi {
         @Path("owner") owner: String,
         @Path("repo") repo: String,
         @Path("tag") tag: String,
+        @Header("Authorization") authorization: String? = null,
     ): GitHubReleaseResponse
 
     companion object {
@@ -28,5 +30,8 @@ data class GitHubReleaseResponse(
 @JsonClass(generateAdapter = true)
 data class GitHubReleaseAsset(
     val name: String,
-    @Json(name = "browser_download_url") val browserDownloadUrl: String,
+    /** The api.github.com URL for this specific asset - required (with an Authorization header
+     *  and Accept: application/octet-stream) to actually download it from a private repo; the
+     *  plain browser_download_url only works unauthenticated, which private repos reject. */
+    val url: String,
 )

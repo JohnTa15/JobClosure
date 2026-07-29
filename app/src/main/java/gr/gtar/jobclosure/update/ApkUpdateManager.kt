@@ -30,8 +30,13 @@ object ApkUpdateManager {
         context.startActivity(intent)
     }
 
-    /** Enqueues the download and calls [onInstallReady] with the finished file's content Uri. */
-    fun downloadUpdate(context: Context, downloadUrl: String, onInstallReady: (Uri) -> Unit) {
+    /**
+     * Enqueues the download and calls [onInstallReady] with the finished file's content Uri.
+     * [gitHubToken], if non-blank, is sent as a Bearer Authorization header - required to fetch a
+     * release asset from a private repo via the api.github.com asset URL (plain unauthenticated
+     * browser_download_url links don't work there).
+     */
+    fun downloadUpdate(context: Context, downloadUrl: String, gitHubToken: String, onInstallReady: (Uri) -> Unit) {
         val appContext = context.applicationContext
         val downloadManager = appContext.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         val request = DownloadManager.Request(Uri.parse(downloadUrl))
@@ -39,6 +44,10 @@ object ApkUpdateManager {
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setDestinationInExternalFilesDir(appContext, Environment.DIRECTORY_DOWNLOADS, FILE_NAME)
             .setMimeType("application/vnd.android.package-archive")
+            .addRequestHeader("Accept", "application/octet-stream")
+        if (gitHubToken.isNotBlank()) {
+            request.addRequestHeader("Authorization", "Bearer $gitHubToken")
+        }
         val downloadId = downloadManager.enqueue(request)
 
         val receiver = object : BroadcastReceiver() {

@@ -5,14 +5,16 @@ import gr.gtar.jobclosure.network.GitHubReleaseApi
 
 /**
  * Checks the rolling "debug-latest" GitHub Release (published by the CI workflow on every push)
- * against the running app's own build number, and hands back the APK download URL if a newer
- * build is available.
+ * against the running app's own build number, and hands back the APK asset's authenticated
+ * download URL if a newer build is available. Works unauthenticated for a public repo, or with a
+ * user-supplied GitHub token (Settings) for a private one.
  */
 class UpdateRepository(private val api: GitHubReleaseApi) {
 
-    suspend fun checkForUpdate(): UpdateCheckResult {
+    suspend fun checkForUpdate(gitHubToken: String): UpdateCheckResult {
         return try {
-            val release = api.getReleaseByTag(OWNER, REPO, TAG)
+            val authHeader = gitHubToken.takeIf { it.isNotBlank() }?.let { "Bearer $it" }
+            val release = api.getReleaseByTag(OWNER, REPO, TAG, authHeader)
             val apkAsset = release.assets.firstOrNull { it.name.endsWith(".apk") }
                 ?: return UpdateCheckResult.Error("Δεν βρέθηκε APK στην τελευταία έκδοση")
 
@@ -22,7 +24,7 @@ class UpdateRepository(private val api: GitHubReleaseApi) {
             if (remoteBuild != null && localBuild != null && remoteBuild > localBuild) {
                 UpdateCheckResult.UpdateAvailable(
                     versionName = "1.0.$remoteBuild",
-                    downloadUrl = apkAsset.browserDownloadUrl,
+                    downloadUrl = apkAsset.url,
                 )
             } else {
                 UpdateCheckResult.UpToDate

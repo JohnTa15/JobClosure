@@ -15,6 +15,7 @@ import gr.gtar.jobclosure.ui.theme.JobClosureTheme
 import gr.gtar.jobclosure.update.UpdateCheckResult
 import gr.gtar.jobclosure.update.UpdateNotifier
 import gr.gtar.jobclosure.update.UpdateStatusHolder
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -45,7 +46,8 @@ class MainActivity : ComponentActivity() {
     private fun checkForUpdate() {
         val app = application as JobClosureApp
         lifecycleScope.launch {
-            val result = app.updateRepository.checkForUpdate()
+            val token = app.settingsRepository.settings.first().gitHubToken
+            val result = app.updateRepository.checkForUpdate(token)
             UpdateStatusHolder.set(result)
             if (result is UpdateCheckResult.UpdateAvailable) {
                 UpdateNotifier.showUpdateAvailable(this@MainActivity, result.versionName)

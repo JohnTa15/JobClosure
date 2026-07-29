@@ -9,6 +9,7 @@ import gr.gtar.jobclosure.update.UpdateRepository
 import gr.gtar.jobclosure.update.UpdateStatusHolder
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -42,9 +43,14 @@ class SettingsViewModel(
         viewModelScope.launch { repository.setOpenAipApiKey(key) }
     }
 
+    fun setGitHubToken(token: String) {
+        viewModelScope.launch { repository.setGitHubToken(token) }
+    }
+
     fun checkForUpdateNow() {
         viewModelScope.launch {
-            UpdateStatusHolder.set(updateRepository.checkForUpdate())
+            val token = repository.settings.first().gitHubToken
+            UpdateStatusHolder.set(updateRepository.checkForUpdate(token))
         }
     }
 }

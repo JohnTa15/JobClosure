@@ -18,6 +18,7 @@ data class AppSettings(
     val defaultCalendarId: Long? = null,
     val dronePartnerEmail: String = "",
     val openAipApiKey: String = "",
+    val gitHubToken: String = "",
 )
 
 class SettingsRepository(private val context: Context) {
@@ -29,6 +30,7 @@ class SettingsRepository(private val context: Context) {
         val DEFAULT_CALENDAR_ID = longPreferencesKey("default_calendar_id")
         val DRONE_PARTNER_EMAIL = stringPreferencesKey("drone_partner_email")
         val OPENAIP_API_KEY = stringPreferencesKey("openaip_api_key")
+        val GITHUB_TOKEN = stringPreferencesKey("github_token")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
@@ -39,6 +41,7 @@ class SettingsRepository(private val context: Context) {
             defaultCalendarId = prefs[Keys.DEFAULT_CALENDAR_ID],
             dronePartnerEmail = prefs[Keys.DRONE_PARTNER_EMAIL] ?: "",
             openAipApiKey = prefs[Keys.OPENAIP_API_KEY] ?: "",
+            gitHubToken = prefs[Keys.GITHUB_TOKEN] ?: "",
         )
     }
 
@@ -64,5 +67,9 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setOpenAipApiKey(key: String) {
         context.dataStore.edit { it[Keys.OPENAIP_API_KEY] = key }
+    }
+
+    suspend fun setGitHubToken(token: String) {
+        context.dataStore.edit { it[Keys.GITHUB_TOKEN] = token }
     }
 }

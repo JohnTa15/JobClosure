@@ -46,6 +46,7 @@ fun SettingsScreen(
     var reminderMinutes by remember { mutableStateOf("120") }
     var dronePartnerEmail by remember { mutableStateOf("") }
     var openAipApiKey by remember { mutableStateOf("") }
+    var gitHubToken by remember { mutableStateOf("") }
     var loaded by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -55,6 +56,7 @@ fun SettingsScreen(
         reminderMinutes = current.reminderMinutesBefore.toString()
         dronePartnerEmail = current.dronePartnerEmail
         openAipApiKey = current.openAipApiKey
+        gitHubToken = current.gitHubToken
         loaded = true
     }
 
@@ -157,6 +159,24 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
 
+            OutlinedTextField(
+                value = gitHubToken,
+                onValueChange = {
+                    gitHubToken = it
+                    viewModel.setGitHubToken(it)
+                },
+                label = { Text("GitHub token (για ιδιωτικό repo)") },
+                supportingText = {
+                    Text(
+                        "Χρειάζεται μόνο αν το repository του project παραμένει private - " +
+                            "fine-grained personal access token, scoped μόνο σε αυτό το repo, με " +
+                            "δικαίωμα 'Contents: Read-only'. Χρησιμοποιείται για τον έλεγχο και τη " +
+                            "λήψη ενημερώσεων. Αν το repo γίνει public, δεν χρειάζεται καθόλου."
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+
             Text(
                 "Η προσθήκη στο ημερολόγιο γίνεται μέσω του ημερολογίου της συσκευής, οπότε δουλεύει " +
                     "είτε χρησιμοποιείς Google Calendar είτε Samsung Calendar - επίλεξε το ημερολόγιο " +
@@ -172,6 +192,7 @@ fun SettingsScreen(
 private fun UpdateSection(viewModel: SettingsViewModel) {
     val context = LocalContext.current
     val updateStatus by viewModel.updateStatus.collectAsState()
+    val settings by viewModel.settings.collectAsState()
     var isDownloading by remember { mutableStateOf(false) }
     var showInstallPermissionDialog by remember { mutableStateOf(false) }
 
@@ -193,7 +214,7 @@ private fun UpdateSection(viewModel: SettingsViewModel) {
                                 showInstallPermissionDialog = true
                             } else {
                                 isDownloading = true
-                                ApkUpdateManager.downloadUpdate(context, status.downloadUrl) { uri ->
+                                ApkUpdateManager.downloadUpdate(context, status.downloadUrl, settings.gitHubToken) { uri ->
                                     isDownloading = false
                                     ApkUpdateManager.promptInstall(context, uri)
                                 }
