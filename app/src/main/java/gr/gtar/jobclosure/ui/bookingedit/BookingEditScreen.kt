@@ -15,6 +15,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
@@ -70,7 +73,7 @@ fun BookingEditScreen(
                 },
                 actions = {
                     if (!isNew) {
-                        IconButton(onClick = { viewModel.deleteAndFinish() }) {
+                        IconButton(onClick = { viewModel.requestDelete() }) {
                             Icon(Icons.Filled.Delete, contentDescription = "Διαγραφή")
                         }
                     }
@@ -105,6 +108,31 @@ fun BookingEditScreen(
                 Switch(
                     checked = state.hasDrone,
                     onCheckedChange = { checked -> viewModel.update { it.copy(hasDrone = checked) } },
+                )
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Filled.HelpOutline,
+                    contentDescription = null,
+                    tint = if (state.isConfirmed) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(end = 8.dp),
+                )
+                Text(
+                    "Επιβεβαιωμένη δουλειά",
+                    modifier = Modifier.weight(1f),
+                    color = if (state.isConfirmed) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error,
+                )
+                Switch(
+                    checked = state.isConfirmed,
+                    onCheckedChange = { checked -> viewModel.update { it.copy(isConfirmed = checked) } },
+                )
+            }
+            if (!state.isConfirmed) {
+                Text(
+                    "Θα εμφανίζεται με ερωτηματικό (?) στη λίστα, μέχρι να την επιβεβαιώσεις.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 
@@ -237,6 +265,7 @@ fun BookingEditScreen(
                 enabled = !state.isSaving,
                 modifier = Modifier.fillMaxWidth(),
             ) {
+                Icon(Icons.Filled.Save, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
                 Text(if (state.isSaving) "Αποθήκευση..." else "Αποθήκευση")
             }
         }
@@ -261,6 +290,23 @@ fun BookingEditScreen(
             },
             dismissButton = {
                 TextButton(onClick = { viewModel.dismissConflicts() }) { Text("Άκυρο") }
+            },
+        )
+    }
+
+    if (state.showDeleteConfirmation) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissDeleteConfirmation() },
+            icon = { Icon(Icons.Filled.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("Διαγραφή δουλειάς") },
+            text = { Text("Είσαι σίγουρος ότι θέλεις να διαγράψεις οριστικά αυτή τη δουλειά;") },
+            confirmButton = {
+                TextButton(onClick = { viewModel.deleteAndFinish() }) {
+                    Text("Διαγραφή", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissDeleteConfirmation() }) { Text("Άκυρο") }
             },
         )
     }

@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +27,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Celebration
 import androidx.compose.material.icons.filled.FlightTakeoff
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -36,6 +39,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -44,6 +48,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -65,6 +71,7 @@ fun BookingListScreen(
 ) {
     val bookings by viewModel.bookings.collectAsState()
     val filter by viewModel.filter.collectAsState()
+    val pendingDelete by viewModel.pendingDelete.collectAsState()
 
     Scaffold(
         topBar = {
@@ -129,6 +136,7 @@ fun BookingListScreen(
                                 BookingRow(
                                     booking,
                                     onClick = { onOpenBooking(booking.id) },
+                                    onLongPress = { viewModel.requestDelete(booking) },
                                     modifier = Modifier.animateItem(),
                                 )
                             }
@@ -138,15 +146,44 @@ fun BookingListScreen(
             }
         }
     }
+
+    pendingDelete?.let { booking ->
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissDeleteRequest() },
+            icon = { Icon(Icons.Filled.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("Διαγραφή δουλειάς") },
+            text = { Text("Είσαι σίγουρος ότι θέλεις να διαγράψεις οριστικά τη δουλειά \"${booking.title}\";") },
+            confirmButton = {
+                TextButton(onClick = { viewModel.confirmDelete() }) {
+                    Text("Διαγραφή", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissDeleteRequest() }) { Text("Άκυρο") }
+            },
+        )
+    }
 }
 
 @Composable
-private fun BookingRow(booking: Booking, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun BookingRow(
+    booking: Booking,
+    onClick: () -> Unit,
+    onLongPress: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val haptics = LocalHapticFeedback.current
     Card(
-        onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onLongPress()
+                },
+            ),
         colors = CardDefaults.cardColors(),
     ) {
         Row(modifier = Modifier.fillMaxWidth()) {
@@ -158,10 +195,14 @@ private fun BookingRow(booking: Booking, onClick: () -> Unit, modifier: Modifier
             )
             Column(modifier = Modifier.padding(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (!booking.isConfirmed) {
+                        UnconfirmedBadge(modifier = Modifier.padding(end = 6.dp))
+                    }
                     Text(
                         text = "${booking.ceremonyStart.format(timeFormatter)}  ${booking.title}",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
+                        color = if (booking.isConfirmed) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -204,6 +245,25 @@ private fun BookingRow(booking: Booking, onClick: () -> Unit, modifier: Modifier
                 }
             }
         }
+    }
+}
+
+/** Small circular "?" marker shown next to a booking's title while it's only tentatively booked. */
+@Composable
+private fun UnconfirmedBadge(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(20.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.errorContainer),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            "?",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onErrorContainer,
+        )
     }
 }
 

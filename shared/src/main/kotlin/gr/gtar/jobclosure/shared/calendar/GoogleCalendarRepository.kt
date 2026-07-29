@@ -72,6 +72,7 @@ class GoogleCalendarRepository(
             role = BookingMetadataCodec.ROLE_CEREMONY,
             type = booking.type.name,
             hasDrone = booking.hasDrone,
+            isConfirmed = booking.isConfirmed,
             title = booking.title,
             venueName = booking.churchName,
         )
@@ -167,6 +168,7 @@ class GoogleCalendarRepository(
                 ?: BookingType.OTHER,
             notes = BookingMetadataCodec.userNotes(ceremony.description),
             hasDrone = ceremonyMetadata.hasDrone,
+            isConfirmed = ceremonyMetadata.isConfirmed,
             churchName = ceremonyMetadata.venueName ?: "",
             churchAddress = ceremony.location ?: "",
             ceremonyStart = ceremonyStart,

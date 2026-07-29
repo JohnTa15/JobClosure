@@ -9,6 +9,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -248,6 +251,7 @@ private fun UpdateSection(viewModel: SettingsViewModel) {
                         enabled = !isDownloading,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
+                        Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
                         Text(if (isDownloading) "Λήψη..." else "Λήψη & Εγκατάσταση")
                     }
                     downloadError?.let {
@@ -272,6 +276,7 @@ private fun UpdateSection(viewModel: SettingsViewModel) {
             }
 
             TextButton(onClick = { viewModel.checkForUpdateNow() }) {
+                Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
                 Text("Έλεγχος για ενημέρωση τώρα")
             }
         }
@@ -291,7 +296,10 @@ private fun UpdateSection(viewModel: SettingsViewModel) {
                 TextButton(onClick = {
                     showInstallPermissionDialog = false
                     ApkUpdateManager.openInstallPermissionSettings(context)
-                }) { Text("Ρυθμίσεις") }
+                }) {
+                    Icon(Icons.Filled.Settings, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
+                    Text("Ρυθμίσεις")
+                }
             },
             dismissButton = {
                 TextButton(onClick = { showInstallPermissionDialog = false }) { Text("Άκυρο") }

@@ -25,6 +25,7 @@ data class BookingEditUiState(
     val title: String = "",
     val type: BookingType = BookingType.WEDDING,
     val notes: String = "",
+    val isConfirmed: Boolean = true,
     val hasDrone: Boolean = false,
     val churchName: String = "",
     val churchAddress: String = "",
@@ -41,6 +42,7 @@ data class BookingEditUiState(
     val selectedCalendarId: Long? = null,
     val availableCalendars: List<CalendarInfo> = emptyList(),
     val conflicts: List<Booking> = emptyList(),
+    val showDeleteConfirmation: Boolean = false,
     val saved: Boolean = false,
     val churchCalendarEventId: Long? = null,
     val receptionCalendarEventId: Long? = null,
@@ -70,6 +72,7 @@ class BookingEditViewModel(
                     title = existing.title,
                     type = existing.type,
                     notes = existing.notes,
+                    isConfirmed = existing.isConfirmed,
                     hasDrone = existing.hasDrone,
                     churchName = existing.churchName,
                     churchAddress = existing.churchAddress,
@@ -137,6 +140,7 @@ class BookingEditViewModel(
                         role = BookingMetadataCodec.ROLE_CEREMONY,
                         type = booking.type.name,
                         hasDrone = state.hasDrone,
+                        isConfirmed = state.isConfirmed,
                         title = booking.title,
                         venueName = booking.churchName,
                     ),
@@ -212,6 +216,14 @@ class BookingEditViewModel(
         }
     }
 
+    fun requestDelete() {
+        _uiState.value = _uiState.value.copy(showDeleteConfirmation = true)
+    }
+
+    fun dismissDeleteConfirmation() {
+        _uiState.value = _uiState.value.copy(showDeleteConfirmation = false)
+    }
+
     fun deleteAndFinish() {
         viewModelScope.launch {
             val existing = bookingId?.let { repository.getById(it) } ?: return@launch
@@ -236,6 +248,7 @@ private fun BookingEditUiState.toBooking(): Booking = Booking(
     title = title,
     type = type,
     notes = notes,
+    isConfirmed = isConfirmed,
     hasDrone = hasDrone,
     churchName = churchName,
     churchAddress = churchAddress,

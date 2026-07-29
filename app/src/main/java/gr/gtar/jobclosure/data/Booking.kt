@@ -36,6 +36,10 @@ data class Booking(
     val type: BookingType,
     val notes: String = "",
 
+    // false = only tentatively booked, not yet confirmed by the client - shown with a "?" marker
+    // instead of treating it the same as a firmly closed job.
+    val isConfirmed: Boolean = true,
+
     val hasDrone: Boolean = false,
 
     // Church ceremony (relevant when type.isChurchSacrament)

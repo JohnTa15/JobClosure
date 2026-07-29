@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Air
 import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GppGood
+import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Terrain
 import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material3.Card
@@ -113,6 +114,24 @@ fun BookingDetailScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            if (!booking.isConfirmed) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Icon(
+                        Icons.Filled.HelpOutline,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Text(
+                        "Χωρίς επιβεβαίωση ακόμα",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
             Text(booking.type.displayName, style = MaterialTheme.typography.titleLarge)
             Text(
                 booking.ceremonyStart.format(dateTimeFormatter)

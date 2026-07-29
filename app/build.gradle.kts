@@ -23,7 +23,28 @@ android {
         versionName = "1.0.$ciBuildNumber"
     }
 
+    // A fixed debug keystore, committed to the repo: without this, the Android Gradle Plugin
+    // auto-generates a fresh ~/.android/debug.keystore on whatever machine builds it - and since
+    // every CI run happens on a brand-new GitHub Actions VM, every build would get signed with a
+    // different key. Android refuses to install an APK over an existing app when the signing
+    // certificate doesn't match, so the in-app updater's "install over the old version" would
+    // silently require a full uninstall first, wiping all app data (settings, tokens, every saved
+    // booking) on every single update. A debug key has no confidentiality to protect in the first
+    // place (Android's own default has a universally-known password) - committing one just pins it
+    // stable across builds instead of leaving it to chance per-machine.
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("debug")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

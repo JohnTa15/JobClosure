@@ -45,7 +45,7 @@ fun JobClosureNavHost(app: JobClosureApp) {
         composable(ROUTE_LIST) {
             val viewModel: BookingListViewModel = viewModel(
                 factory = viewModelFactory {
-                    initializer { BookingListViewModel(app.bookingRepository) }
+                    initializer { BookingListViewModel(app, app.bookingRepository) }
                 },
             )
             BookingListScreen(

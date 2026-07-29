@@ -11,6 +11,7 @@ data class BookingMetadata(
     val role: String,
     val type: String? = null,
     val hasDrone: Boolean = false,
+    val isConfirmed: Boolean = true,
     val title: String? = null,
     val venueName: String? = null,
 )

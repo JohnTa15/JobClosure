@@ -28,6 +28,8 @@ data class Booking(
     val title: String,
     val type: BookingType,
     val notes: String = "",
+    // false = only tentatively booked, not yet confirmed by the client.
+    val isConfirmed: Boolean = true,
     val hasDrone: Boolean = false,
     val churchName: String = "",
     val churchAddress: String = "",
