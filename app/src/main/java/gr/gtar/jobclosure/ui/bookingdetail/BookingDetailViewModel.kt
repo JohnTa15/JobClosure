@@ -7,6 +7,8 @@ import gr.gtar.jobclosure.data.AppSettings
 import gr.gtar.jobclosure.data.Booking
 import gr.gtar.jobclosure.data.BookingRepository
 import gr.gtar.jobclosure.data.SettingsRepository
+import gr.gtar.jobclosure.network.DroneConditionsRepository
+import gr.gtar.jobclosure.network.DroneConditionsResult
 import gr.gtar.jobclosure.network.TravelTimeRepository
 import gr.gtar.jobclosure.network.TravelTimeResult
 import kotlinx.coroutines.async
@@ -23,6 +25,9 @@ data class BookingDetailUiState(
     val isLoadingTravelTimes: Boolean = false,
     val homeToChurch: TravelTimeResult? = null,
     val churchToReception: TravelTimeResult? = null,
+    val isLoadingDroneConditions: Boolean = false,
+    val churchDroneConditions: DroneConditionsResult? = null,
+    val receptionDroneConditions: DroneConditionsResult? = null,
 )
 
 class BookingDetailViewModel(
@@ -30,6 +35,7 @@ class BookingDetailViewModel(
     private val bookingRepository: BookingRepository,
     private val settingsRepository: SettingsRepository,
     private val travelTimeRepository: TravelTimeRepository,
+    private val droneConditionsRepository: DroneConditionsRepository,
     private val bookingId: Long,
 ) : AndroidViewModel(application) {
 
@@ -41,13 +47,19 @@ class BookingDetailViewModel(
             val booking = bookingRepository.getById(bookingId)
             val settings = settingsRepository.settings.first()
             _uiState.value = _uiState.value.copy(booking = booking, settings = settings, isLoading = false)
-            if (booking != null) refreshTravelTimes(booking, settings)
+            if (booking != null) {
+                refreshTravelTimes(booking, settings)
+                if (booking.hasDrone) refreshDroneConditions(booking, settings)
+            }
         }
     }
 
     fun refreshTravelTimes() {
         val booking = _uiState.value.booking ?: return
-        viewModelScope.launch { refreshTravelTimes(booking, _uiState.value.settings) }
+        viewModelScope.launch {
+            refreshTravelTimes(booking, _uiState.value.settings)
+            if (booking.hasDrone) refreshDroneConditions(booking, _uiState.value.settings)
+        }
     }
 
     private suspend fun refreshTravelTimes(booking: Booking, settings: AppSettings) {
@@ -74,6 +86,29 @@ class BookingDetailViewModel(
             isLoadingTravelTimes = false,
             homeToChurch = homeToChurch,
             churchToReception = churchToReception,
+        )
+    }
+
+    private suspend fun refreshDroneConditions(booking: Booking, settings: AppSettings) {
+        _uiState.value = _uiState.value.copy(isLoadingDroneConditions = true)
+
+        val churchDeferred = viewModelScope.async {
+            droneConditionsRepository.getConditions(booking.churchAddress, settings.mapsApiKey)
+        }
+        val receptionDeferred = viewModelScope.async {
+            if (booking.hasReception && booking.receptionVenueAddress.isNotBlank()) {
+                droneConditionsRepository.getConditions(booking.receptionVenueAddress, settings.mapsApiKey)
+            } else {
+                null
+            }
+        }
+        val church = churchDeferred.await()
+        val reception = receptionDeferred.await()
+
+        _uiState.value = _uiState.value.copy(
+            isLoadingDroneConditions = false,
+            churchDroneConditions = church,
+            receptionDroneConditions = reception,
         )
     }
 }

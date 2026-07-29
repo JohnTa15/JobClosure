@@ -19,8 +19,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Air
 import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Terrain
+import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -40,10 +43,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import gr.gtar.jobclosure.data.Booking
+import gr.gtar.jobclosure.network.DroneConditionsResult
 import gr.gtar.jobclosure.network.TravelTimeResult
 import java.net.URLEncoder
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.math.roundToInt
 
 private val dateTimeFormatter = DateTimeFormatter.ofPattern("EEEE d MMMM yyyy, HH:mm", Locale("el", "GR"))
 
@@ -52,6 +57,13 @@ private sealed interface TravelDisplayState {
     data class Success(val text: String) : TravelDisplayState
     data class Error(val message: String) : TravelDisplayState
     data object Empty : TravelDisplayState
+}
+
+private sealed interface DroneDisplayState {
+    data object Loading : DroneDisplayState
+    data class Success(val conditions: DroneConditionsResult.Success) : DroneDisplayState
+    data class Error(val message: String) : DroneDisplayState
+    data object Empty : DroneDisplayState
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -115,6 +127,9 @@ fun BookingDetailScreen(
                 travelLabel = "Από το σπίτι",
                 travelResult = state.homeToChurch,
                 isLoadingTravelTime = state.isLoadingTravelTimes,
+                showDroneConditions = booking.hasDrone,
+                droneConditions = state.churchDroneConditions,
+                isLoadingDroneConditions = state.isLoadingDroneConditions,
                 onNavigate = { openDirections(context, state.settings.homeAddress, booking.churchAddress) },
             )
 
@@ -128,6 +143,9 @@ fun BookingDetailScreen(
                     travelLabel = "Από την εκκλησία",
                     travelResult = state.churchToReception,
                     isLoadingTravelTime = state.isLoadingTravelTimes,
+                    showDroneConditions = booking.hasDrone,
+                    droneConditions = state.receptionDroneConditions,
+                    isLoadingDroneConditions = state.isLoadingDroneConditions,
                     onNavigate = {
                         openDirections(context, booking.churchAddress, booking.receptionVenueAddress)
                     },
@@ -152,6 +170,9 @@ private fun LocationCard(
     travelLabel: String,
     travelResult: TravelTimeResult?,
     isLoadingTravelTime: Boolean,
+    showDroneConditions: Boolean = false,
+    droneConditions: DroneConditionsResult? = null,
+    isLoadingDroneConditions: Boolean = false,
     onNavigate: () -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -190,6 +211,53 @@ private fun LocationCard(
                 }
             }
 
+            if (showDroneConditions) {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                Text(
+                    "Συνθήκες για Drone",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.tertiary,
+                )
+
+                val droneDisplay: DroneDisplayState = when {
+                    isLoadingDroneConditions -> DroneDisplayState.Loading
+                    droneConditions is DroneConditionsResult.Success -> DroneDisplayState.Success(droneConditions)
+                    droneConditions is DroneConditionsResult.Error -> DroneDisplayState.Error(droneConditions.message)
+                    else -> DroneDisplayState.Empty
+                }
+                AnimatedContent(
+                    targetState = droneDisplay,
+                    transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(120)) },
+                    label = "drone-conditions",
+                ) { display ->
+                    when (display) {
+                        is DroneDisplayState.Loading -> Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp).size(16.dp))
+                        }
+                        is DroneDisplayState.Success -> {
+                            val c = display.conditions
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                DroneConditionRow(
+                                    Icons.Filled.Thermostat,
+                                    "${c.temperatureC.roundToInt()}°C, ${c.weatherDescription}",
+                                )
+                                DroneConditionRow(
+                                    Icons.Filled.Air,
+                                    "Άνεμος: ${c.windSpeedKmh.roundToInt()} km/h (${windDirectionLabel(c.windDirectionDeg)})",
+                                )
+                                DroneConditionRow(
+                                    Icons.Filled.Terrain,
+                                    "Υψόμετρο περιοχής: ${c.elevationMeters.roundToInt()} μ.",
+                                )
+                            }
+                        }
+                        is DroneDisplayState.Error ->
+                            Text(display.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                        DroneDisplayState.Empty -> Row {}
+                    }
+                }
+            }
+
             if (address.isNotBlank()) {
                 OutlinedButton(onClick = onNavigate, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Filled.Directions, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -198,6 +266,21 @@ private fun LocationCard(
             }
         }
     }
+}
+
+@Composable
+private fun DroneConditionRow(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.tertiary)
+        Text(text, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+/** Rough 8-point compass label from a wind direction in degrees. */
+private fun windDirectionLabel(degrees: Double): String {
+    val directions = listOf("Β", "ΒΑ", "Α", "ΝΑ", "Ν", "ΝΔ", "Δ", "ΒΔ")
+    val index = (((degrees % 360) + 360) % 360 / 45.0).roundToInt() % 8
+    return directions[index]
 }
 
 private fun openDirections(context: Context, origin: String, destination: String) {
