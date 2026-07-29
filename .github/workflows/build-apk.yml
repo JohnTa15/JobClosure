@@ -27,19 +27,43 @@ jobs:
       - name: Build debug APK
         run: ./gradlew assembleDebug --stacktrace
 
+      - name: Compute version (matches the number Gradle baked into the APK)
+        id: version
+        run: |
+          VERSION_NAME="1.0.${{ github.run_number }}"
+          RENAMED="app-debug-v${VERSION_NAME}.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "app/build/outputs/apk/debug/${RENAMED}"
+          echo "version_name=${VERSION_NAME}" >> "$GITHUB_OUTPUT"
+          echo "renamed_apk=app/build/outputs/apk/debug/${RENAMED}" >> "$GITHUB_OUTPUT"
+
       - name: Upload APK as workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: jobclosure-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ steps.version.outputs.renamed_apk }}
 
-      # Workflow artifacts aren't downloadable from the official GitHub mobile
-      # app, so also publish the APK as a Release asset - those download fine
-      # from the app.
+      # Each build's asset gets a version-specific filename so a phone/browser that already
+      # downloaded a previous build never mistakes it for "already have this one" and reopens a
+      # stale copy instead of fetching the new APK. This step deletes whatever asset(s) are
+      # already attached to the rolling "debug-latest" release first, so the release still ends
+      # up with exactly one APK instead of accumulating every past build.
+      - name: Remove previous release asset(s)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view debug-latest --repo "${{ github.repository }}" --json assets \
+            --jq '.assets[].name' 2>/dev/null | while read -r name; do
+            gh release delete-asset debug-latest "$name" --repo "${{ github.repository }}" -y || true
+          done || true
+
+      # Workflow artifacts aren't downloadable from the official GitHub mobile app, so also
+      # publish the APK as a Release asset - those download fine from the app.
       - name: Publish APK as a GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: debug-latest
-          name: JobClosure debug build
-          body: Auto-built debug APK from the latest push to `${{ github.ref_name }}`.
-          files: app/build/outputs/apk/debug/app-debug.apk
+          name: "JobClosure debug v${{ steps.version.outputs.version_name }}"
+          body: |
+            Έκδοση ${{ steps.version.outputs.version_name }} (build #${{ github.run_number }})
+            Auto-built από το push `${{ github.sha }}` στο branch `${{ github.ref_name }}`.
+          files: ${{ steps.version.outputs.renamed_apk }}

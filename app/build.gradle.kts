@@ -5,6 +5,12 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+// CI (GitHub Actions) sets GITHUB_RUN_NUMBER, which increases by one on every workflow run -
+// used as the build number so each APK that comes out of CI is a distinct, higher version than
+// the last, and Android/Play-style tooling can tell them apart instead of treating every debug
+// build as the same "1.0".
+val ciBuildNumber = (System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 0)
+
 android {
     namespace = "gr.gtar.jobclosure"
     compileSdk = 35
@@ -13,8 +19,8 @@ android {
         applicationId = "gr.gtar.jobclosure"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 1 + ciBuildNumber
+        versionName = "1.0.$ciBuildNumber"
     }
 
     buildTypes {
@@ -35,6 +41,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     packaging {
