@@ -55,6 +55,10 @@ import kotlin.math.roundToInt
 
 private val dateTimeFormatter = DateTimeFormatter.ofPattern("EEEE d MMMM yyyy, HH:mm", Locale("el", "GR"))
 
+/** Drone Aware - GR (DAGR): HCAA/HASP's official pre-flight airspace check for Greece. No public
+ *  API is published for it, so this links out to the real site instead of guessing at one. */
+private const val DAGR_URL = "https://dagr.hasp.gov.gr/"
+
 private sealed interface TravelDisplayState {
     data object Loading : TravelDisplayState
     data class Success(val text: String) : TravelDisplayState
@@ -321,6 +325,17 @@ private fun LocationCard(
                         DroneZoneDisplayState.Empty -> Row {}
                     }
                 }
+
+                val droneAwareContext = LocalContext.current
+                OutlinedButton(
+                    onClick = {
+                        droneAwareContext.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(DAGR_URL)))
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(Icons.Filled.GppGood, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text("  Επίσημος έλεγχος στο Drone Aware - GR (ΥΠΑ/HASP)")
+                }
             }
 
             if (address.isNotBlank()) {
@@ -344,8 +359,9 @@ private fun DroneConditionRow(icon: androidx.compose.ui.graphics.vector.ImageVec
 @Composable
 private fun ZoneCheckDisclaimer() {
     Text(
-        "Ενημερωτικός έλεγχος μόνο (βάση δεδομένων OpenAIP) - δεν αντικαθιστά επίσημη πηγή. " +
-            "Πάντα επιβεβαίωνε πριν πετάξεις, ειδικά κοντά σε αεροδρόμια ή στρατιωτικές περιοχές.",
+        "Ενημερωτικός έλεγχος μόνο (βάση δεδομένων OpenAIP) - δεν αντικαθιστά το Drone Aware - GR " +
+            "(ΥΠΑ/HASP), που είναι ο επίσημος έλεγχος. Πάντα επιβεβαίωνε εκεί πριν πετάξεις, ειδικά " +
+            "κοντά σε αεροδρόμια ή στρατιωτικές περιοχές.",
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
