@@ -19,4 +19,5 @@ class JobClosureApp : Application() {
     val travelTimeRepository get() = NetworkModule.travelTimeRepository
     val droneConditionsRepository get() = NetworkModule.droneConditionsRepository
     val droneZoneRepository get() = NetworkModule.droneZoneRepository
+    val updateRepository get() = NetworkModule.updateRepository
 }

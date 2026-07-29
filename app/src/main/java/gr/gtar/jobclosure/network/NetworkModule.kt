@@ -1,6 +1,7 @@
 package gr.gtar.jobclosure.network
 
 import com.squareup.moshi.Moshi
+import gr.gtar.jobclosure.update.UpdateRepository
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -42,10 +43,19 @@ object NetworkModule {
             .build()
     }
 
+    private val gitHubRetrofit: Retrofit by lazy {
+        Retrofit.Builder()
+            .baseUrl(GitHubReleaseApi.BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+    }
+
     val directionsApi: DirectionsApi by lazy { googleMapsRetrofit.create(DirectionsApi::class.java) }
     val geocodingApi: GeocodingApi by lazy { googleMapsRetrofit.create(GeocodingApi::class.java) }
     val openMeteoApi: OpenMeteoApi by lazy { openMeteoRetrofit.create(OpenMeteoApi::class.java) }
     val openAipApi: OpenAipApi by lazy { openAipRetrofit.create(OpenAipApi::class.java) }
+    val gitHubReleaseApi: GitHubReleaseApi by lazy { gitHubRetrofit.create(GitHubReleaseApi::class.java) }
 
     val travelTimeRepository: TravelTimeRepository by lazy { TravelTimeRepository(directionsApi) }
     val droneConditionsRepository: DroneConditionsRepository by lazy {
@@ -54,4 +64,5 @@ object NetworkModule {
     val droneZoneRepository: DroneZoneRepository by lazy {
         DroneZoneRepository(geocodingApi, openAipApi)
     }
+    val updateRepository: UpdateRepository by lazy { UpdateRepository(gitHubReleaseApi) }
 }

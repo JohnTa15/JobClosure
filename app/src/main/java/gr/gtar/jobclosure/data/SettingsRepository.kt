@@ -16,7 +16,7 @@ data class AppSettings(
     val mapsApiKey: String = "",
     val reminderMinutesBefore: Int = 120,
     val defaultCalendarId: Long? = null,
-    val dronePartnerEmail: String = "john2000ta@gmail.com",
+    val dronePartnerEmail: String = "",
     val openAipApiKey: String = "",
 )
 
@@ -37,7 +37,7 @@ class SettingsRepository(private val context: Context) {
             mapsApiKey = prefs[Keys.MAPS_API_KEY] ?: "",
             reminderMinutesBefore = prefs[Keys.REMINDER_MINUTES] ?: 120,
             defaultCalendarId = prefs[Keys.DEFAULT_CALENDAR_ID],
-            dronePartnerEmail = prefs[Keys.DRONE_PARTNER_EMAIL] ?: "john2000ta@gmail.com",
+            dronePartnerEmail = prefs[Keys.DRONE_PARTNER_EMAIL] ?: "",
             openAipApiKey = prefs[Keys.OPENAIP_API_KEY] ?: "",
         )
     }

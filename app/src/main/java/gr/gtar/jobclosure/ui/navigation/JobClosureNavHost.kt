@@ -111,7 +111,7 @@ fun JobClosureNavHost(app: JobClosureApp) {
         composable(ROUTE_SETTINGS) {
             val viewModel: SettingsViewModel = viewModel(
                 factory = viewModelFactory {
-                    initializer { SettingsViewModel(app.settingsRepository) }
+                    initializer { SettingsViewModel(app.settingsRepository, app.updateRepository) }
                 },
             )
             SettingsScreen(viewModel = viewModel, onBack = { navController.popBackStack() })

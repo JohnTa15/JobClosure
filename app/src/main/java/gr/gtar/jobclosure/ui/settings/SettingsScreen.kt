@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -14,17 +17,22 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import gr.gtar.jobclosure.BuildConfig
+import gr.gtar.jobclosure.update.ApkUpdateManager
+import gr.gtar.jobclosure.update.UpdateCheckResult
 import kotlinx.coroutines.flow.first
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -71,6 +79,8 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            UpdateSection(viewModel)
+
             OutlinedTextField(
                 value = homeAddress,
                 onValueChange = {
@@ -154,12 +164,89 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-
-            Text(
-                "Έκδοση ${BuildConfig.VERSION_NAME} (κωδικός ${BuildConfig.VERSION_CODE})",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.outline,
-            )
         }
+    }
+}
+
+@Composable
+private fun UpdateSection(viewModel: SettingsViewModel) {
+    val context = LocalContext.current
+    val updateStatus by viewModel.updateStatus.collectAsState()
+    var isDownloading by remember { mutableStateOf(false) }
+    var showInstallPermissionDialog by remember { mutableStateOf(false) }
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Ενημερώσεις", style = MaterialTheme.typography.titleMedium)
+            Text("Τρέχουσα έκδοση: ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodyMedium)
+
+            when (val status = updateStatus) {
+                is UpdateCheckResult.UpdateAvailable -> {
+                    Text(
+                        "Διαθέσιμη νέα έκδοση: ${status.versionName}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.tertiary,
+                    )
+                    Button(
+                        onClick = {
+                            if (!ApkUpdateManager.canInstallUnknownApps(context)) {
+                                showInstallPermissionDialog = true
+                            } else {
+                                isDownloading = true
+                                ApkUpdateManager.downloadUpdate(context, status.downloadUrl) { uri ->
+                                    isDownloading = false
+                                    ApkUpdateManager.promptInstall(context, uri)
+                                }
+                            }
+                        },
+                        enabled = !isDownloading,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(if (isDownloading) "Λήψη..." else "Λήψη & Εγκατάσταση")
+                    }
+                }
+                UpdateCheckResult.UpToDate -> Text(
+                    "Έχεις την πιο πρόσφατη έκδοση.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                is UpdateCheckResult.Error -> Text(
+                    status.message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                null -> Text(
+                    "Δεν έχει γίνει έλεγχος ακόμα.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            TextButton(onClick = { viewModel.checkForUpdateNow() }) {
+                Text("Έλεγχος για ενημέρωση τώρα")
+            }
+        }
+    }
+
+    if (showInstallPermissionDialog) {
+        AlertDialog(
+            onDismissRequest = { showInstallPermissionDialog = false },
+            title = { Text("Άδεια εγκατάστασης") },
+            text = {
+                Text(
+                    "Για να εγκατασταθεί η ενημέρωση, χρειάζεται να επιτρέψεις στο JobClosure να " +
+                        "εγκαθιστά εφαρμογές από άγνωστες πηγές."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showInstallPermissionDialog = false
+                    ApkUpdateManager.openInstallPermissionSettings(context)
+                }) { Text("Ρυθμίσεις") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showInstallPermissionDialog = false }) { Text("Άκυρο") }
+            },
+        )
     }
 }
