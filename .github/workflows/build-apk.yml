@@ -56,6 +56,19 @@ jobs:
       - name: Package Windows installer (.msi)
         run: ./gradlew.bat :desktopApp:packageDistributionForCurrentOS --stacktrace
 
+      # jpackage/WiX only write their actual error text to log files on the runner's disk -
+      # Gradle's own output just says "exit code 1" and points at these paths. Print them here so
+      # a packaging failure is diagnosable from the Actions log instead of disappearing with the
+      # ephemeral workspace.
+      - name: Show jpackage logs on failure
+        if: failure()
+        shell: pwsh
+        run: |
+          Get-ChildItem -Path desktopApp/build/compose/logs -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+            Write-Host "----- $($_.FullName) -----"
+            Get-Content $_.FullName
+          }
+
       - name: Upload .msi as workflow artifact
         uses: actions/upload-artifact@v4
         with:
@@ -78,6 +91,14 @@ jobs:
 
       - name: Package macOS installer (.dmg)
         run: ./gradlew :desktopApp:packageDistributionForCurrentOS --stacktrace
+
+      - name: Show jpackage logs on failure
+        if: failure()
+        run: |
+          find desktopApp/build/compose/logs -type f 2>/dev/null | while read -r f; do
+            echo "----- $f -----"
+            cat "$f"
+          done
 
       - name: Upload .dmg as workflow artifact
         uses: actions/upload-artifact@v4
