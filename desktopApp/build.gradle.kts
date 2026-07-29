@@ -38,6 +38,13 @@ compose.desktop {
 
         nativeDistributions {
             targetFormats(TargetFormat.Msi, TargetFormat.Dmg, TargetFormat.Deb)
+            // jpackage bundles a trimmed JDK runtime (via jlink), built from an automatic jdeps
+            // scan - which isn't reliable for classpath-mode apps and misses modules that aren't
+            // among the obvious ones. GoogleAuthManager uses com.sun.net.httpserver.HttpServer
+            // (the OAuth loopback redirect server) from the jdk.httpserver module; without listing
+            // it explicitly here, the packaged app throws NoClassDefFoundError for it at runtime
+            // even though `./gradlew run` (against a full, untrimmed JDK) works fine.
+            modules("jdk.httpserver")
             packageName = "JobClosure"
             packageVersion = "1.0.${ciBuildNumber.coerceAtLeast(1)}"
             // jpackage's Windows/MSI packaging embeds this into a Win32 resource version-info
