@@ -1,5 +1,9 @@
 package gr.gtar.jobclosure.ui.navigation
 
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
@@ -30,7 +34,14 @@ private const val NEW_BOOKING_ID = -1L
 fun JobClosureNavHost(app: JobClosureApp) {
     val navController = rememberNavController()
 
-    NavHost(navController = navController, startDestination = ROUTE_LIST) {
+    NavHost(
+        navController = navController,
+        startDestination = ROUTE_LIST,
+        enterTransition = { slideInHorizontally(initialOffsetX = { it / 3 }) + fadeIn() },
+        exitTransition = { slideOutHorizontally(targetOffsetX = { -it / 5 }) + fadeOut() },
+        popEnterTransition = { slideInHorizontally(initialOffsetX = { -it / 5 }) + fadeIn() },
+        popExitTransition = { slideOutHorizontally(targetOffsetX = { it / 3 }) + fadeOut() },
+    ) {
         composable(ROUTE_LIST) {
             val viewModel: BookingListViewModel = viewModel(
                 factory = viewModelFactory {

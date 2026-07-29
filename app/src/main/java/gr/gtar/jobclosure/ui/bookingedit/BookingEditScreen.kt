@@ -1,5 +1,10 @@
 package gr.gtar.jobclosure.ui.bookingedit
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -153,33 +158,39 @@ fun BookingEditScreen(
                 )
             }
 
-            if (state.hasReception) {
-                OutlinedTextField(
-                    value = state.receptionVenueName,
-                    onValueChange = { value -> viewModel.update { it.copy(receptionVenueName = value) } },
-                    label = { Text("Όνομα κέντρου δεξίωσης") },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = state.receptionVenueAddress,
-                    onValueChange = { value -> viewModel.update { it.copy(receptionVenueAddress = value) } },
-                    label = { Text("Διεύθυνση κέντρου") },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                DateTimePickerField(
-                    label = "Ώρα δεξίωσης",
-                    dateTime = state.receptionStart,
-                    onDateTimeChange = { dt -> viewModel.update { it.copy(receptionStart = dt) } },
-                )
-                OutlinedTextField(
-                    value = state.receptionDurationMinutes.toString(),
-                    onValueChange = { value ->
-                        val minutes = value.toIntOrNull()
-                        if (minutes != null) viewModel.update { it.copy(receptionDurationMinutes = minutes) }
-                    },
-                    label = { Text("Διάρκεια δεξίωσης (λεπτά)") },
-                    modifier = Modifier.fillMaxWidth(),
-                )
+            AnimatedVisibility(
+                visible = state.hasReception,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut(),
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = state.receptionVenueName,
+                        onValueChange = { value -> viewModel.update { it.copy(receptionVenueName = value) } },
+                        label = { Text("Όνομα κέντρου δεξίωσης") },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = state.receptionVenueAddress,
+                        onValueChange = { value -> viewModel.update { it.copy(receptionVenueAddress = value) } },
+                        label = { Text("Διεύθυνση κέντρου") },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    DateTimePickerField(
+                        label = "Ώρα δεξίωσης",
+                        dateTime = state.receptionStart,
+                        onDateTimeChange = { dt -> viewModel.update { it.copy(receptionStart = dt) } },
+                    )
+                    OutlinedTextField(
+                        value = state.receptionDurationMinutes.toString(),
+                        onValueChange = { value ->
+                            val minutes = value.toIntOrNull()
+                            if (minutes != null) viewModel.update { it.copy(receptionDurationMinutes = minutes) }
+                        },
+                        label = { Text("Διάρκεια δεξίωσης (λεπτά)") },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
 
             HorizontalDivider()
@@ -200,7 +211,11 @@ fun BookingEditScreen(
                     onCheckedChange = { checked -> viewModel.update { it.copy(addToCalendar = checked) } },
                 )
             }
-            if (state.addToCalendar) {
+            AnimatedVisibility(
+                visible = state.addToCalendar,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut(),
+            ) {
                 if (state.availableCalendars.isEmpty()) {
                     Text(
                         "Δεν βρέθηκαν εγγράψιμα ημερολόγια. Δώσε άδεια Ημερολογίου στην εφαρμογή και " +

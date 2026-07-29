@@ -1,15 +1,26 @@
 package gr.gtar.jobclosure.ui.bookinglist
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Celebration
@@ -31,9 +42,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import gr.gtar.jobclosure.data.Booking
+import gr.gtar.jobclosure.ui.theme.accentColor
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -84,29 +99,39 @@ fun BookingListScreen(
                 }
             }
 
-            if (bookings.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        "Δεν υπάρχουν κλεισμένες δουλειές ακόμα.\nΠάτησε + για να προσθέσεις μία.",
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            } else {
-                val grouped = bookings.groupBy { it.ceremonyStart.toLocalDate() }
-                LazyColumn(contentPadding = PaddingValues(bottom = 96.dp)) {
-                    grouped.forEach { (date, dayBookings) ->
-                        item {
-                            Text(
-                                text = date.format(dateHeaderFormatter)
-                                    .replaceFirstChar { it.titlecase(Locale("el", "GR")) },
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp),
-                            )
-                        }
-                        items(dayBookings) { booking ->
-                            BookingRow(booking, onClick = { onOpenBooking(booking.id) })
+            AnimatedContent(
+                targetState = bookings.isEmpty(),
+                transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(150)) },
+                label = "booking-list-content",
+            ) { isEmpty ->
+                if (isEmpty) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            "Δεν υπάρχουν κλεισμένες δουλειές ακόμα.\nΠάτησε + για να προσθέσεις μία.",
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                } else {
+                    val grouped = bookings.groupBy { it.ceremonyStart.toLocalDate() }
+                    LazyColumn(contentPadding = PaddingValues(bottom = 96.dp)) {
+                        grouped.forEach { (date, dayBookings) ->
+                            item(key = "header-$date") {
+                                Text(
+                                    text = date.format(dateHeaderFormatter)
+                                        .replaceFirstChar { it.titlecase(Locale("el", "GR")) },
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp),
+                                )
+                            }
+                            items(dayBookings, key = { it.id }) { booking ->
+                                BookingRow(
+                                    booking,
+                                    onClick = { onOpenBooking(booking.id) },
+                                    modifier = Modifier.animateItem(),
+                                )
+                            }
                         }
                     }
                 }
@@ -116,40 +141,66 @@ fun BookingListScreen(
 }
 
 @Composable
-private fun BookingRow(booking: Booking, onClick: () -> Unit) {
+private fun BookingRow(booking: Booking, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Card(
         onClick = onClick,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp),
         colors = CardDefaults.cardColors(),
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "${booking.ceremonyStart.format(timeFormatter)}  ${booking.title}",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            Text(text = booking.type.displayName, style = MaterialTheme.typography.bodyMedium)
-            if (booking.churchName.isNotBlank()) {
-                Text(
-                    text = "Εκκλησία: ${booking.churchName}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.padding(top = 6.dp),
-            ) {
-                if (booking.hasDrone) {
-                    IconLabel(Icons.Filled.FlightTakeoff, "Drone")
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(5.dp)
+                    .background(booking.type.accentColor()),
+            )
+            Column(modifier = Modifier.padding(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "${booking.ceremonyStart.format(timeFormatter)}  ${booking.title}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
-                if (booking.hasReception) {
-                    IconLabel(Icons.Filled.Celebration, "Δεξίωση")
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(booking.type.accentColor()),
+                    )
+                    Text(text = booking.type.displayName, style = MaterialTheme.typography.bodyMedium)
+                }
+                if (booking.churchName.isNotBlank()) {
+                    Text(
+                        text = "Εκκλησία: ${booking.churchName}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(top = 6.dp),
+                ) {
+                    if (booking.hasDrone) {
+                        IconPill(
+                            icon = Icons.Filled.FlightTakeoff,
+                            label = "Drone",
+                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                        )
+                    }
+                    if (booking.hasReception) {
+                        IconPill(
+                            icon = Icons.Filled.Celebration,
+                            label = "Δεξίωση",
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                    }
                 }
             }
         }
@@ -157,11 +208,21 @@ private fun BookingRow(booking: Booking, onClick: () -> Unit) {
 }
 
 @Composable
-private fun IconLabel(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String?) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        Icon(icon, contentDescription = label, modifier = Modifier.padding(end = 0.dp))
-        if (label != null) {
-            Text(label, style = MaterialTheme.typography.labelSmall)
-        }
+private fun IconPill(
+    icon: ImageVector,
+    label: String,
+    containerColor: androidx.compose.ui.graphics.Color,
+    contentColor: androidx.compose.ui.graphics.Color,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(containerColor)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+    ) {
+        Icon(icon, contentDescription = label, tint = contentColor, modifier = Modifier.size(14.dp))
+        Text(label, style = MaterialTheme.typography.labelSmall, color = contentColor)
     }
 }

@@ -3,6 +3,11 @@ package gr.gtar.jobclosure.ui.bookingdetail
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -41,6 +46,13 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 private val dateTimeFormatter = DateTimeFormatter.ofPattern("EEEE d MMMM yyyy, HH:mm", Locale("el", "GR"))
+
+private sealed interface TravelDisplayState {
+    data object Loading : TravelDisplayState
+    data class Success(val text: String) : TravelDisplayState
+    data class Error(val message: String) : TravelDisplayState
+    data object Empty : TravelDisplayState
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -153,14 +165,28 @@ private fun LocationCard(
                 Text(subtitle, style = MaterialTheme.typography.bodySmall)
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
-                when {
-                    isLoadingTravelTime -> CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp).size(16.dp))
-                    travelResult is TravelTimeResult.Success ->
-                        Text("$travelLabel: ${travelResult.durationText}", style = MaterialTheme.typography.bodyMedium)
-                    travelResult is TravelTimeResult.Error ->
-                        Text(travelResult.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                    else -> {}
+            val travelDisplay: TravelDisplayState = when {
+                isLoadingTravelTime -> TravelDisplayState.Loading
+                travelResult is TravelTimeResult.Success ->
+                    TravelDisplayState.Success("$travelLabel: ${travelResult.durationText}")
+                travelResult is TravelTimeResult.Error -> TravelDisplayState.Error(travelResult.message)
+                else -> TravelDisplayState.Empty
+            }
+            AnimatedContent(
+                targetState = travelDisplay,
+                transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(120)) },
+                label = "travel-time",
+                modifier = Modifier.padding(top = 4.dp),
+            ) { display ->
+                when (display) {
+                    is TravelDisplayState.Loading -> Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp).size(16.dp))
+                    }
+                    is TravelDisplayState.Success ->
+                        Text(display.text, style = MaterialTheme.typography.bodyMedium)
+                    is TravelDisplayState.Error ->
+                        Text(display.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                    TravelDisplayState.Empty -> Row {}
                 }
             }
 
