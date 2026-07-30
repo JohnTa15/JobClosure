@@ -32,6 +32,17 @@ class PlaceSearchRepository(
         }
     }
 
+    /** Reverse-geocodes a GPS fix into an address, for the "use my current location" button.
+     *  Always uses Nominatim (free, no API key) regardless of the chosen maps provider, since this
+     *  is a one-off convenience fill the user can still edit afterwards. */
+    suspend fun reverseGeocode(latitude: Double, longitude: Double): PlaceSuggestion? =
+        try {
+            val result = nominatimApi.reverse(lat = latitude, lon = longitude)
+            if (result.displayName.isBlank()) null else toOsmSuggestion(result)
+        } catch (e: Exception) {
+            null
+        }
+
     private suspend fun suggestOpenStreetMap(query: String): List<PlaceSuggestion> =
         nominatimApi.search(query = query, limit = MAX_SUGGESTIONS)
             .filter { it.displayName.isNotBlank() }

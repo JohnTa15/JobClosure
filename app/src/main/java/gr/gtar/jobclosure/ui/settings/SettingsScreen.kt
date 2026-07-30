@@ -1,21 +1,27 @@
 package gr.gtar.jobclosure.ui.settings
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -34,12 +40,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import gr.gtar.jobclosure.BuildConfig
 import gr.gtar.jobclosure.data.MapsProvider
+import gr.gtar.jobclosure.location.LocationHelper
+import gr.gtar.jobclosure.location.LocationResult
 import gr.gtar.jobclosure.ui.components.AutocompleteAddressField
 import gr.gtar.jobclosure.update.ApkUpdateManager
 import gr.gtar.jobclosure.update.DownloadResult
@@ -60,6 +69,39 @@ fun SettingsScreen(
     var dronePartnerEmail by remember { mutableStateOf("") }
     var gitHubToken by remember { mutableStateOf("") }
     var loaded by remember { mutableStateOf(false) }
+    var isLocating by remember { mutableStateOf(false) }
+    var locationError by remember { mutableStateOf<String?>(null) }
+
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    suspend fun useCurrentLocation() {
+        locationError = null
+        isLocating = true
+        when (val location = LocationHelper.getCurrentLocation(context)) {
+            is LocationResult.Success -> {
+                val suggestion = viewModel.placeSearchRepository.reverseGeocode(location.latitude, location.longitude)
+                if (suggestion != null) {
+                    homeAddress = suggestion.fullText
+                    viewModel.setHomeAddress(suggestion.fullText)
+                } else {
+                    locationError = "Δεν βρέθηκε διεύθυνση για αυτή την τοποθεσία"
+                }
+            }
+            is LocationResult.Error -> locationError = location.message
+        }
+        isLocating = false
+    }
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { granted ->
+        if (granted.values.any { it }) {
+            scope.launch { useCurrentLocation() }
+        } else {
+            locationError = "Χρειάζεται άδεια τοποθεσίας για αυτή τη λειτουργία"
+        }
+    }
 
     LaunchedEffect(Unit) {
         val current = viewModel.settings.first()
@@ -96,19 +138,44 @@ fun SettingsScreen(
         ) {
             UpdateSection(viewModel)
 
-            AutocompleteAddressField(
-                value = homeAddress,
-                onValueChange = {
-                    homeAddress = it
-                    viewModel.setHomeAddress(it)
-                },
-                label = "Διεύθυνση σπιτιού",
-                provider = mapsProvider,
-                googleApiKey = mapsApiKey,
-                placeSearchRepository = viewModel.placeSearchRepository,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                AutocompleteAddressField(
+                    value = homeAddress,
+                    onValueChange = {
+                        homeAddress = it
+                        viewModel.setHomeAddress(it)
+                    },
+                    label = "Διεύθυνση σπιτιού",
+                    provider = mapsProvider,
+                    googleApiKey = mapsApiKey,
+                    placeSearchRepository = viewModel.placeSearchRepository,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(
+                    enabled = !isLocating,
+                    onClick = {
+                        if (LocationHelper.hasLocationPermission(context)) {
+                            scope.launch { useCurrentLocation() }
+                        } else {
+                            locationPermissionLauncher.launch(
+                                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+                            )
+                        }
+                    },
+                ) {
+                    if (isLocating) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                    } else {
+                        Icon(Icons.Filled.MyLocation, contentDescription = "Χρήση τρέχουσας τοποθεσίας")
+                    }
+                }
+            }
+            locationError?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            }
             Text(
-                "Χρησιμοποιείται ως αφετηρία για τον υπολογισμό χρόνου διαδρομής",
+                "Πάτα το εικονίδιο τοποθεσίας για αυτόματη συμπλήρωση με τη τρέχουσα θέση σου, ή γράψε τη " +
+                    "διεύθυνση με το χέρι. Χρησιμοποιείται ως αφετηρία για τον υπολογισμό χρόνου διαδρομής",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

@@ -100,12 +100,17 @@ class BookingDetailViewModel(
         _uiState.value = _uiState.value.copy(isLoadingDroneConditions = true)
 
         val churchDeferred = viewModelScope.async {
-            droneConditionsRepository.getConditions(booking.churchAddress, settings.mapsProvider, settings.mapsApiKey)
+            droneConditionsRepository.getConditions(
+                booking.churchAddress, settings.mapsProvider, settings.mapsApiKey, booking.ceremonyStart.toLocalDate(),
+            )
         }
         val receptionDeferred = viewModelScope.async {
             if (booking.hasReception && booking.receptionVenueAddress.isNotBlank()) {
                 droneConditionsRepository.getConditions(
-                    booking.receptionVenueAddress, settings.mapsProvider, settings.mapsApiKey,
+                    booking.receptionVenueAddress,
+                    settings.mapsProvider,
+                    settings.mapsApiKey,
+                    (booking.receptionStart ?: booking.ceremonyStart).toLocalDate(),
                 )
             } else {
                 null

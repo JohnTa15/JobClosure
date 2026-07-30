@@ -54,6 +54,7 @@ import java.util.Locale
 import kotlin.math.roundToInt
 
 private val dateTimeFormatter = DateTimeFormatter.ofPattern("EEEE d MMMM yyyy, HH:mm", Locale("el", "GR"))
+private val shortDateFormatter = DateTimeFormatter.ofPattern("d MMMM", Locale("el", "GR"))
 
 /** Drone Aware - GR (DAGR): HCAA/HASP's official pre-flight airspace check for Greece. No public
  *  API is published for it, so this links out to the real site instead of guessing at one. */
@@ -154,6 +155,7 @@ fun BookingDetailScreen(
                 isLoadingTravelTime = state.isLoadingTravelTimes,
                 showDroneConditions = booking.hasDrone,
                 droneConditions = state.churchDroneConditions,
+                droneForecastDate = booking.ceremonyStart.toLocalDate(),
                 isLoadingDroneConditions = state.isLoadingDroneConditions,
                 onNavigate = {
                     openDirections(
@@ -175,6 +177,7 @@ fun BookingDetailScreen(
                     isLoadingTravelTime = state.isLoadingTravelTimes,
                     showDroneConditions = booking.hasDrone,
                     droneConditions = state.receptionDroneConditions,
+                    droneForecastDate = (booking.receptionStart ?: booking.ceremonyStart).toLocalDate(),
                     isLoadingDroneConditions = state.isLoadingDroneConditions,
                     onNavigate = {
                         openDirections(
@@ -205,6 +208,7 @@ private fun LocationCard(
     isLoadingTravelTime: Boolean,
     showDroneConditions: Boolean = false,
     droneConditions: DroneConditionsResult? = null,
+    droneForecastDate: java.time.LocalDate? = null,
     isLoadingDroneConditions: Boolean = false,
     onNavigate: () -> Unit,
 ) {
@@ -247,7 +251,11 @@ private fun LocationCard(
             if (showDroneConditions) {
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                 Text(
-                    "Συνθήκες για Drone",
+                    if (droneForecastDate != null) {
+                        "Συνθήκες για Drone - πρόβλεψη για ${droneForecastDate.format(shortDateFormatter)}"
+                    } else {
+                        "Συνθήκες για Drone"
+                    },
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.tertiary,
                 )

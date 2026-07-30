@@ -25,6 +25,16 @@ interface NominatimApi {
         @Query("addressdetails") addressDetails: Int = 1,
     ): List<NominatimResult>
 
+    /** Reverse geocoding: turns a GPS fix into an address, for the "use my current location" button. */
+    @Headers("User-Agent: JobClosure-Android-App (single-user booking tracker, no contact address)")
+    @GET("reverse")
+    suspend fun reverse(
+        @Query("lat") lat: Double,
+        @Query("lon") lon: Double,
+        @Query("format") format: String = "json",
+        @Query("addressdetails") addressDetails: Int = 1,
+    ): NominatimResult
+
     companion object {
         const val BASE_URL = "https://nominatim.openstreetmap.org/"
     }
