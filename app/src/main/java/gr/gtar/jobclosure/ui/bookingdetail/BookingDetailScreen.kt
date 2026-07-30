@@ -38,12 +38,16 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import gr.gtar.jobclosure.data.Booking
 import gr.gtar.jobclosure.data.MapsProvider
 import gr.gtar.jobclosure.network.DroneConditionsResult
@@ -83,6 +87,20 @@ fun BookingDetailScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+
+    // This screen's ViewModel is scoped to its nav back-stack entry, so navigating to Edit and
+    // back reuses the same instance instead of creating a fresh one - without reloading here, an
+    // edit (church address, confirmation, drone toggle...) would keep showing the pre-edit data
+    // until the app restarts. The back-stack entry's own lifecycle resumes each time this screen
+    // becomes the top destination again, which is exactly the signal to reload on.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.reload()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     Scaffold(
         topBar = {

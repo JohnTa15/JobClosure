@@ -43,6 +43,17 @@ class BookingDetailViewModel(
     val uiState: StateFlow<BookingDetailUiState> = _uiState.asStateFlow()
 
     init {
+        reload()
+    }
+
+    /**
+     * Re-fetches the booking from the database. The edit screen lives on top of this one in the
+     * back stack, so returning here after saving an edit resumes this same screen/ViewModel
+     * instead of creating a fresh one - without this, whatever was loaded once at [init] time (the
+     * pre-edit church address, confirmation state, etc.) would keep showing until the app fully
+     * restarts. Called from [init] and again every time this screen becomes visible.
+     */
+    fun reload() {
         viewModelScope.launch {
             val booking = bookingRepository.getById(bookingId)
             val settings = settingsRepository.settings.first()
