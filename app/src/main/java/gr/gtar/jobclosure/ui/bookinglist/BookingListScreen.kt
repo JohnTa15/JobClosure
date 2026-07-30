@@ -55,6 +55,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import gr.gtar.jobclosure.data.Booking
+import gr.gtar.jobclosure.ui.components.ChangelogDialog
 import gr.gtar.jobclosure.ui.theme.accentColor
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -73,6 +74,7 @@ fun BookingListScreen(
     val bookings by viewModel.bookings.collectAsState()
     val filter by viewModel.filter.collectAsState()
     val pendingDelete by viewModel.pendingDelete.collectAsState()
+    val showChangelog by viewModel.showChangelog.collectAsState()
 
     Scaffold(
         topBar = {
@@ -163,6 +165,10 @@ fun BookingListScreen(
                 TextButton(onClick = { viewModel.dismissDeleteRequest() }) { Text("Άκυρο") }
             },
         )
+    }
+
+    if (showChangelog) {
+        ChangelogDialog(onDismiss = { viewModel.dismissChangelog() })
     }
 }
 

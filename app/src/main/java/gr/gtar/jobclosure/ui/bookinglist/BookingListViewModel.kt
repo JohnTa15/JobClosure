@@ -7,10 +7,13 @@ import gr.gtar.jobclosure.calendar.CalendarHelper
 import gr.gtar.jobclosure.data.Booking
 import gr.gtar.jobclosure.data.BookingRepository
 import gr.gtar.jobclosure.data.BookingType
+import gr.gtar.jobclosure.data.SettingsRepository
+import gr.gtar.jobclosure.shared.changelog.CURRENT_CHANGELOG_ID
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -24,6 +27,7 @@ enum class BookingFilter(val label: String) {
 class BookingListViewModel(
     application: Application,
     private val repository: BookingRepository,
+    private val settingsRepository: SettingsRepository,
 ) : AndroidViewModel(application) {
 
     private val activeFilter = MutableStateFlow(BookingFilter.ALL)
@@ -31,6 +35,16 @@ class BookingListViewModel(
 
     private val _pendingDelete = MutableStateFlow<Booking?>(null)
     val pendingDelete: StateFlow<Booking?> = _pendingDelete
+
+    /** True once, right after an update, until the user dismisses the "what's new" dialog. */
+    val showChangelog: StateFlow<Boolean> =
+        settingsRepository.settings
+            .map { it.changelogLastSeenId < CURRENT_CHANGELOG_ID }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    fun dismissChangelog() {
+        viewModelScope.launch { settingsRepository.markChangelogSeen(CURRENT_CHANGELOG_ID) }
+    }
 
     val bookings: StateFlow<List<Booking>> =
         combine(repository.observeAll(), activeFilter) { all, filter ->

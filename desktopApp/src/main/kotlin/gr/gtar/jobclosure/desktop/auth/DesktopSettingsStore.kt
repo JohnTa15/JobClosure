@@ -15,6 +15,7 @@ data class DesktopSettings(
     val refreshToken: String = "",
     val calendarId: String = "",
     val dronePartnerEmail: String = "",
+    val changelogLastSeenId: Int = 0,
 )
 
 object DesktopSettingsStore {
@@ -31,6 +32,7 @@ object DesktopSettingsStore {
             refreshToken = props.getProperty("refreshToken", ""),
             calendarId = props.getProperty("calendarId", ""),
             dronePartnerEmail = props.getProperty("dronePartnerEmail", ""),
+            changelogLastSeenId = props.getProperty("changelogLastSeenId", "0").toIntOrNull() ?: 0,
         )
     }
 
@@ -42,6 +44,7 @@ object DesktopSettingsStore {
         props.setProperty("refreshToken", settings.refreshToken)
         props.setProperty("calendarId", settings.calendarId)
         props.setProperty("dronePartnerEmail", settings.dronePartnerEmail)
+        props.setProperty("changelogLastSeenId", settings.changelogLastSeenId.toString())
         configFile.outputStream().use { props.store(it, "JobClosure desktop settings") }
     }
 }

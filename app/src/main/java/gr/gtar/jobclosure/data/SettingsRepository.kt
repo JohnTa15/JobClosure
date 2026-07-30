@@ -26,6 +26,7 @@ data class AppSettings(
     val defaultCalendarId: Long? = null,
     val dronePartnerEmail: String = "",
     val gitHubToken: String = "",
+    val changelogLastSeenId: Int = 0,
 )
 
 class SettingsRepository(private val context: Context) {
@@ -38,6 +39,7 @@ class SettingsRepository(private val context: Context) {
         val DEFAULT_CALENDAR_ID = longPreferencesKey("default_calendar_id")
         val DRONE_PARTNER_EMAIL = stringPreferencesKey("drone_partner_email")
         val GITHUB_TOKEN = stringPreferencesKey("github_token")
+        val CHANGELOG_LAST_SEEN_ID = intPreferencesKey("changelog_last_seen_id")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
@@ -55,6 +57,7 @@ class SettingsRepository(private val context: Context) {
             defaultCalendarId = prefs[Keys.DEFAULT_CALENDAR_ID],
             dronePartnerEmail = prefs[Keys.DRONE_PARTNER_EMAIL] ?: "",
             gitHubToken = prefs[Keys.GITHUB_TOKEN] ?: "",
+            changelogLastSeenId = prefs[Keys.CHANGELOG_LAST_SEEN_ID] ?: 0,
         )
     }
 
@@ -84,5 +87,9 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setGitHubToken(token: String) {
         context.dataStore.edit { it[Keys.GITHUB_TOKEN] = token }
+    }
+
+    suspend fun markChangelogSeen(id: Int) {
+        context.dataStore.edit { it[Keys.CHANGELOG_LAST_SEEN_ID] = id }
     }
 }

@@ -4,6 +4,7 @@ import gr.gtar.jobclosure.desktop.auth.DesktopSettings
 import gr.gtar.jobclosure.desktop.auth.DesktopSettingsStore
 import gr.gtar.jobclosure.desktop.auth.GoogleAuthManager
 import gr.gtar.jobclosure.shared.calendar.GCalCalendarListEntry
+import gr.gtar.jobclosure.shared.changelog.CURRENT_CHANGELOG_ID
 import gr.gtar.jobclosure.shared.calendar.GoogleCalendarRepository
 import gr.gtar.jobclosure.shared.calendar.GoogleOAuthTokenService
 import gr.gtar.jobclosure.shared.model.Booking
@@ -32,6 +33,7 @@ data class AppUiState(
     val errorMessage: String? = null,
     val pendingConflicts: kotlin.collections.List<Booking> = emptyList(),
     val pendingSave: Booking? = null,
+    val showChangelog: Boolean = false,
 )
 
 /**
@@ -50,7 +52,13 @@ class AppViewModel(private val scope: CoroutineScope) {
 
     private val repository = GoogleCalendarRepository(httpClient) { getAccessToken() }
 
-    private val _state = MutableStateFlow(AppUiState(settings = currentSettings, isLoading = false))
+    private val _state = MutableStateFlow(
+        AppUiState(
+            settings = currentSettings,
+            isLoading = false,
+            showChangelog = currentSettings.changelogLastSeenId < CURRENT_CHANGELOG_ID,
+        ),
+    )
     val state: StateFlow<AppUiState> = _state.asStateFlow()
 
     init {
@@ -185,6 +193,12 @@ class AppViewModel(private val scope: CoroutineScope) {
 
     fun dismissError() {
         _state.update { it.copy(errorMessage = null) }
+    }
+
+    fun dismissChangelog() {
+        currentSettings = currentSettings.copy(changelogLastSeenId = CURRENT_CHANGELOG_ID)
+        DesktopSettingsStore.save(currentSettings)
+        _state.update { it.copy(showChangelog = false) }
     }
 
     private suspend fun getAccessToken(): String {
