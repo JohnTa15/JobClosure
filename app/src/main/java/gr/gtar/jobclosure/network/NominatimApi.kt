@@ -22,6 +22,7 @@ interface NominatimApi {
         @Query("format") format: String = "json",
         @Query("limit") limit: Int = 1,
         @Query("countrycodes") countryCodes: String = "gr",
+        @Query("addressdetails") addressDetails: Int = 1,
     ): List<NominatimResult>
 
     companion object {
@@ -35,4 +36,22 @@ data class NominatimResult(
     val lat: String,
     val lon: String,
     @Json(name = "display_name") val displayName: String = "",
+    val address: NominatimAddress? = null,
+)
+
+/**
+ * Structured breakdown of a result's address (requested via addressdetails=1), used to build a
+ * short, human-friendly address instead of [NominatimResult.displayName]'s full administrative
+ * hierarchy (which for Greek addresses includes redundant layers like κοινότητα/δήμος/περιφέρεια).
+ */
+@JsonClass(generateAdapter = true)
+data class NominatimAddress(
+    val road: String? = null,
+    @Json(name = "house_number") val houseNumber: String? = null,
+    val village: String? = null,
+    val town: String? = null,
+    val city: String? = null,
+    val municipality: String? = null,
+    val postcode: String? = null,
+    val country: String? = null,
 )

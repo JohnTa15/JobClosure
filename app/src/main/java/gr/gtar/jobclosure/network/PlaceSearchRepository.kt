@@ -35,7 +35,7 @@ class PlaceSearchRepository(
     private suspend fun suggestOpenStreetMap(query: String): List<PlaceSuggestion> =
         nominatimApi.search(query = query, limit = MAX_SUGGESTIONS)
             .filter { it.displayName.isNotBlank() }
-            .map { toSuggestion(it.displayName) }
+            .map { toOsmSuggestion(it) }
 
     private suspend fun suggestGoogle(query: String, apiKey: String): List<PlaceSuggestion> =
         placesApi.autocomplete(input = query, apiKey = apiKey).predictions
@@ -44,4 +44,25 @@ class PlaceSearchRepository(
 
     private fun toSuggestion(fullText: String) =
         PlaceSuggestion(name = fullText.substringBefore(",").trim(), fullText = fullText)
+
+    /**
+     * Nominatim's display_name spells out Greece's full administrative hierarchy (κοινότητα,
+     * δήμος, περιφερειακή ενότητα, περιφέρεια, αποκεντρωμένη διοίκηση, ...) which is far more than
+     * an address field needs. Building a short address from the structured `address` breakdown
+     * instead keeps just street + settlement + postcode + country - enough precision to still
+     * re-geocode correctly later for travel-time lookups, without the noise.
+     */
+    private fun toOsmSuggestion(result: NominatimResult): PlaceSuggestion {
+        val name = result.displayName.substringBefore(",").trim()
+        val address = result.address
+        val concise = address?.let {
+            listOfNotNull(
+                listOfNotNull(it.road, it.houseNumber).joinToString(" ").ifBlank { null },
+                it.village ?: it.town ?: it.city ?: it.municipality,
+                it.postcode,
+                it.country,
+            ).joinToString(", ").ifBlank { null }
+        } ?: result.displayName
+        return PlaceSuggestion(name = name, fullText = concise)
+    }
 }

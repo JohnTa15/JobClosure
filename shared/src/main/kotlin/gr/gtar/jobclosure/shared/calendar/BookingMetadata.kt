@@ -24,9 +24,13 @@ data class BookingMetadata(
  * to get right, whereas whether ExtendedProperties round-trips through to Google Calendar's
  * extendedProperties.private isn't something this project could verify without a real device and
  * account - so the one mechanism actually used here is the one that's certain to work.
+ *
+ * A short label line precedes the marker so it reads as an intentional, explained footer in the
+ * calendar app rather than an unexplained blob of JSON.
  */
 object BookingMetadataCodec {
     private const val MARKER = "::jobclosure::"
+    private const val LABEL = "— Δεδομένα συγχρονισμού JobClosure (μην τα διαγράψεις) —"
     private val json = Json { ignoreUnknownKeys = true }
 
     const val ROLE_CEREMONY = "ceremony"
@@ -34,8 +38,8 @@ object BookingMetadataCodec {
 
     fun encode(userNotes: String, metadata: BookingMetadata): String {
         val cleanNotes = userNotes(userNotes)
-        val metadataLine = MARKER + json.encodeToString(metadata)
-        return if (cleanNotes.isEmpty()) metadataLine else "$cleanNotes\n\n$metadataLine"
+        val metadataBlock = "$LABEL\n$MARKER${json.encodeToString(metadata)}"
+        return if (cleanNotes.isEmpty()) metadataBlock else "$cleanNotes\n\n$metadataBlock"
     }
 
     fun decodeMetadata(description: String?): BookingMetadata? {
@@ -43,7 +47,9 @@ object BookingMetadataCodec {
         return runCatching { json.decodeFromString<BookingMetadata>(line.removePrefix(MARKER)) }.getOrNull()
     }
 
-    /** The human-readable part of a description, with the metadata line (if any) stripped out. */
+    /** The human-readable part of a description, with the metadata line (and its label) stripped out. */
     fun userNotes(description: String?): String =
-        (description ?: "").lineSequence().filterNot { it.startsWith(MARKER) }.joinToString("\n").trim()
+        (description ?: "").lineSequence()
+            .filterNot { it.startsWith(MARKER) || it == LABEL }
+            .joinToString("\n").trim()
 }

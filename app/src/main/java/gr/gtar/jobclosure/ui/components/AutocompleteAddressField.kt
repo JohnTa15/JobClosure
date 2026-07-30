@@ -1,9 +1,14 @@
 package gr.gtar.jobclosure.ui.components
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -13,6 +18,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.window.PopupProperties
 import gr.gtar.jobclosure.data.MapsProvider
 import gr.gtar.jobclosure.network.PlaceSearchRepository
@@ -75,7 +81,28 @@ fun AutocompleteAddressField(
         ) {
             suggestions.forEach { suggestion ->
                 DropdownMenuItem(
-                    text = { Text(suggestion.fullText) },
+                    text = {
+                        Column {
+                            Text(
+                                text = suggestion.name,
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            if (suggestion.fullText != suggestion.name) {
+                                Text(
+                                    text = suggestion.fullText,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    },
+                    leadingIcon = {
+                        Icon(Icons.Filled.LocationOn, contentDescription = null)
+                    },
                     onClick = {
                         isTyping = false
                         expanded = false
