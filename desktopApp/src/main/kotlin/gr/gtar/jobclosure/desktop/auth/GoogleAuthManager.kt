@@ -4,6 +4,8 @@ import com.sun.net.httpserver.HttpServer
 import gr.gtar.jobclosure.shared.calendar.GoogleOAuthTokenService
 import gr.gtar.jobclosure.shared.calendar.GoogleTokenResponse
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeout
 import java.awt.Desktop
 import java.net.InetSocketAddress
 import java.net.URI
@@ -63,7 +65,16 @@ class GoogleAuthManager(private val tokenService: GoogleOAuthTokenService) {
             }
             Desktop.getDesktop().browse(URI(authUrl))
 
-            val code = codeDeferred.await()
+            // Without a timeout, closing the browser tab or cancelling on Google's consent screen
+            // without it ever redirecting back (as opposed to clicking "Deny", which does redirect
+            // with an error and completes codeDeferred exceptionally) leaves this suspended
+            // forever - the sign-in window would then be stuck showing a loading spinner until the
+            // app is force-quit.
+            val code = try {
+                withTimeout(SIGN_IN_TIMEOUT_MILLIS) { codeDeferred.await() }
+            } catch (e: TimeoutCancellationException) {
+                throw IllegalStateException("Η σύνδεση ακυρώθηκε ή έληξε ο χρόνος αναμονής - δοκίμασε ξανά.")
+            }
             tokenService.exchangeAuthorizationCode(
                 clientId = clientId,
                 clientSecret = clientSecret,
@@ -105,6 +116,7 @@ class GoogleAuthManager(private val tokenService: GoogleOAuthTokenService) {
             .toMap()
 
     private companion object {
+        const val SIGN_IN_TIMEOUT_MILLIS = 3 * 60 * 1000L
         const val SUCCESS_HTML = "<html><body><h2>Η σύνδεση με το Google Calendar ολοκληρώθηκε.</h2>" +
             "<p>Μπορείτε να κλείσετε αυτή την καρτέλα και να επιστρέψετε στο JobClosure.</p></body></html>"
         const val ERROR_HTML = "<html><body><h2>Η σύνδεση απέτυχε.</h2>" +

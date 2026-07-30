@@ -52,6 +52,21 @@ compose.desktop {
             // ASCII rather than Greek to avoid that failure mode.
             description = "JobClosure - wedding, baptism and event booking tracker"
             vendor = "JobClosure"
+
+            windows {
+                menu = true
+                menuGroup = "JobClosure"
+                shortcut = true
+                perUserInstall = true
+                // Fixed so every version's .msi shares one upgrade code: without it jpackage
+                // generates a new one per build, and Windows treats each install as an unrelated
+                // product - installing an update side-by-side instead of replacing the old one,
+                // and leaving stale/duplicate entries in Settings > Apps that don't uninstall
+                // cleanly. With a fixed code, installing a new version's .msi upgrades in place
+                // and "Uninstall" in Settings > Apps (or Control Panel) always removes it fully -
+                // Windows Installer provides that automatically, no separate uninstall.exe needed.
+                upgradeUuid = "B07FAC92-44BC-44B8-BF6B-5B37A9F55D64"
+            }
         }
     }
 }
