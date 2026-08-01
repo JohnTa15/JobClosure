@@ -43,6 +43,19 @@ class PlaceSearchRepository(
             null
         }
 
+    /** Forward-geocodes an address into (lat, lon), for the minimap preview on the detail screen.
+     *  Always uses Nominatim regardless of the chosen maps provider, matching [reverseGeocode]. */
+    suspend fun geocode(address: String): Pair<Double, Double>? =
+        try {
+            nominatimApi.search(address).firstOrNull()?.let { result ->
+                val lat = result.lat.toDoubleOrNull()
+                val lon = result.lon.toDoubleOrNull()
+                if (lat != null && lon != null) lat to lon else null
+            }
+        } catch (e: Exception) {
+            null
+        }
+
     private suspend fun suggestOpenStreetMap(query: String): List<PlaceSuggestion> =
         nominatimApi.search(query = query, limit = MAX_SUGGESTIONS)
             .filter { it.displayName.isNotBlank() }

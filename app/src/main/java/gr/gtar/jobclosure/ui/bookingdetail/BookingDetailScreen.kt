@@ -55,6 +55,7 @@ import gr.gtar.jobclosure.data.Booking
 import gr.gtar.jobclosure.data.MapsProvider
 import gr.gtar.jobclosure.network.DroneConditionsResult
 import gr.gtar.jobclosure.network.TravelTimeResult
+import gr.gtar.jobclosure.ui.components.MiniMapPreview
 import java.net.URLEncoder
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -241,6 +242,11 @@ fun BookingDetailScreen(
                 HorizontalDivider()
                 Text("Σημειώσεις", style = MaterialTheme.typography.titleMedium)
                 Text(booking.notes, style = MaterialTheme.typography.bodyMedium)
+            }
+
+            state.mapPreviewCoordinates?.let { (lat, lon) ->
+                HorizontalDivider()
+                MiniMapPreview(latitude = lat, longitude = lon, modifier = Modifier.fillMaxWidth())
             }
         }
     }

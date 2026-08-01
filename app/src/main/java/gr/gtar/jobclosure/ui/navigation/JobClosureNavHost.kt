@@ -96,6 +96,7 @@ fun JobClosureNavHost(app: JobClosureApp) {
                             settingsRepository = app.settingsRepository,
                             travelTimeRepository = app.travelTimeRepository,
                             droneConditionsRepository = app.droneConditionsRepository,
+                            placeSearchRepository = app.placeSearchRepository,
                             bookingId = bookingId,
                         )
                     }

@@ -9,6 +9,7 @@ import gr.gtar.jobclosure.data.BookingRepository
 import gr.gtar.jobclosure.data.SettingsRepository
 import gr.gtar.jobclosure.network.DroneConditionsRepository
 import gr.gtar.jobclosure.network.DroneConditionsResult
+import gr.gtar.jobclosure.network.PlaceSearchRepository
 import gr.gtar.jobclosure.network.TravelTimeRepository
 import gr.gtar.jobclosure.network.TravelTimeResult
 import kotlinx.coroutines.async
@@ -28,6 +29,10 @@ data class BookingDetailUiState(
     val isLoadingDroneConditions: Boolean = false,
     val churchDroneConditions: DroneConditionsResult? = null,
     val receptionDroneConditions: DroneConditionsResult? = null,
+    /** (lat, lon) of the primary venue (church, or the reception venue for non-sacrament
+     *  bookings), for the minimap preview at the bottom of the screen. Null while geocoding or if
+     *  there's no address to show. */
+    val mapPreviewCoordinates: Pair<Double, Double>? = null,
 )
 
 class BookingDetailViewModel(
@@ -36,6 +41,7 @@ class BookingDetailViewModel(
     private val settingsRepository: SettingsRepository,
     private val travelTimeRepository: TravelTimeRepository,
     private val droneConditionsRepository: DroneConditionsRepository,
+    private val placeSearchRepository: PlaceSearchRepository,
     private val bookingId: Long,
 ) : AndroidViewModel(application) {
 
@@ -57,13 +63,16 @@ class BookingDetailViewModel(
         viewModelScope.launch {
             val booking = bookingRepository.getById(bookingId)
             val settings = settingsRepository.settings.first()
-            _uiState.value = _uiState.value.copy(booking = booking, settings = settings, isLoading = false)
+            _uiState.value = _uiState.value.copy(
+                booking = booking, settings = settings, isLoading = false, mapPreviewCoordinates = null,
+            )
             if (booking != null) {
                 refreshTravelTimes(booking, settings)
                 // Weather (temperature, rain) is useful for every booking, not just drone ones -
                 // only the wind/elevation/DAGR extras this same fetch also carries are gated on
                 // hasDrone, and that gating happens in the screen, not here.
                 refreshDroneConditions(booking, settings)
+                refreshMapPreview(booking)
             }
         }
     }
@@ -134,5 +143,14 @@ class BookingDetailViewModel(
             churchDroneConditions = church,
             receptionDroneConditions = reception,
         )
+    }
+
+    /** Church address if there is one (sacrament bookings), else the reception venue's - covers
+     *  school events/performances/other types, which only ever fill in the reception fields. */
+    private suspend fun refreshMapPreview(booking: Booking) {
+        val address = booking.churchAddress.ifBlank { booking.receptionVenueAddress }
+        if (address.isBlank()) return
+        val coordinates = placeSearchRepository.geocode(address)
+        _uiState.value = _uiState.value.copy(mapPreviewCoordinates = coordinates)
     }
 }
