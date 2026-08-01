@@ -137,6 +137,27 @@ jobs:
           name: jobclosure-linux-deb
           path: desktopApp/build/compose/binaries/main/deb/*.deb
 
+  # Kotlin/Native's Apple targets can only compile on a macOS host, and this sandbox has no way to
+  # touch them at all - this is the only place :shared's iOS targets ever actually get built.
+  # Compile-only for now (no iOS app exists yet to package); not part of publish-release's needs,
+  # since it produces no release artifact.
+  build-ios-shared:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Compile :shared for iOS Simulator (arm64)
+        run: ./gradlew :shared:compileKotlinIosSimulatorArm64 --stacktrace
+
   # Runs after every platform build has produced its artifact, and does the actual GitHub Release
   # publishing once - avoids the jobs racing to create/update the same "debug-latest" release.
   publish-release:
