@@ -8,6 +8,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,8 +25,10 @@ import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GppGood
 import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Terrain
 import androidx.compose.material.icons.filled.Thermostat
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -161,6 +164,34 @@ fun BookingDetailScreen(
             if (booking.hasDrone) {
                 Text("Θα χρησιμοποιηθεί drone", style = MaterialTheme.typography.bodyMedium)
             }
+            if (booking.clientPhone.isNotBlank()) {
+                val phoneContext = LocalContext.current
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.clickable {
+                        phoneContext.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${booking.clientPhone}")))
+                    },
+                ) {
+                    Icon(
+                        Icons.Filled.Phone,
+                        contentDescription = "Κλήση",
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                    Text(
+                        booking.clientPhone,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+            if (booking.price > 0.0) {
+                Text(
+                    String.format(Locale.US, "Τιμή: %.0f€", booking.price),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
 
             HorizontalDivider()
 
@@ -171,10 +202,10 @@ fun BookingDetailScreen(
                 travelLabel = "Από το σπίτι",
                 travelResult = state.homeToChurch,
                 isLoadingTravelTime = state.isLoadingTravelTimes,
-                showDroneConditions = booking.hasDrone,
-                droneConditions = state.churchDroneConditions,
-                droneForecastDate = booking.ceremonyStart.toLocalDate(),
-                isLoadingDroneConditions = state.isLoadingDroneConditions,
+                hasDrone = booking.hasDrone,
+                weatherConditions = state.churchDroneConditions,
+                weatherForecastDate = booking.ceremonyStart.toLocalDate(),
+                isLoadingWeatherConditions = state.isLoadingDroneConditions,
                 onNavigate = {
                     openDirections(
                         context, state.settings.homeAddress, booking.churchAddress,
@@ -193,10 +224,10 @@ fun BookingDetailScreen(
                     travelLabel = "Από την εκκλησία",
                     travelResult = state.churchToReception,
                     isLoadingTravelTime = state.isLoadingTravelTimes,
-                    showDroneConditions = booking.hasDrone,
-                    droneConditions = state.receptionDroneConditions,
-                    droneForecastDate = (booking.receptionStart ?: booking.ceremonyStart).toLocalDate(),
-                    isLoadingDroneConditions = state.isLoadingDroneConditions,
+                    hasDrone = booking.hasDrone,
+                    weatherConditions = state.receptionDroneConditions,
+                    weatherForecastDate = (booking.receptionStart ?: booking.ceremonyStart).toLocalDate(),
+                    isLoadingWeatherConditions = state.isLoadingDroneConditions,
                     onNavigate = {
                         openDirections(
                             context, booking.churchAddress, booking.receptionVenueAddress,
@@ -224,10 +255,10 @@ private fun LocationCard(
     travelLabel: String,
     travelResult: TravelTimeResult?,
     isLoadingTravelTime: Boolean,
-    showDroneConditions: Boolean = false,
-    droneConditions: DroneConditionsResult? = null,
-    droneForecastDate: java.time.LocalDate? = null,
-    isLoadingDroneConditions: Boolean = false,
+    hasDrone: Boolean = false,
+    weatherConditions: DroneConditionsResult? = null,
+    weatherForecastDate: java.time.LocalDate? = null,
+    isLoadingWeatherConditions: Boolean = false,
     onNavigate: () -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -266,40 +297,51 @@ private fun LocationCard(
                 }
             }
 
-            if (showDroneConditions) {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                Text(
-                    if (droneForecastDate != null) {
-                        "Συνθήκες για Drone - πρόβλεψη για ${droneForecastDate.format(shortDateFormatter)}"
-                    } else {
-                        "Συνθήκες για Drone"
-                    },
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.tertiary,
-                )
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            Text(
+                if (weatherForecastDate != null) {
+                    "Καιρός - πρόβλεψη για ${weatherForecastDate.format(shortDateFormatter)}"
+                } else {
+                    "Καιρός"
+                },
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.tertiary,
+            )
 
-                val droneDisplay: DroneDisplayState = when {
-                    isLoadingDroneConditions -> DroneDisplayState.Loading
-                    droneConditions is DroneConditionsResult.Success -> DroneDisplayState.Success(droneConditions)
-                    droneConditions is DroneConditionsResult.Error -> DroneDisplayState.Error(droneConditions.message)
-                    else -> DroneDisplayState.Empty
-                }
-                AnimatedContent(
-                    targetState = droneDisplay,
-                    transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(120)) },
-                    label = "drone-conditions",
-                ) { display ->
-                    when (display) {
-                        is DroneDisplayState.Loading -> Row(verticalAlignment = Alignment.CenterVertically) {
-                            CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp).size(16.dp))
-                        }
-                        is DroneDisplayState.Success -> {
-                            val c = display.conditions
-                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            val weatherDisplay: DroneDisplayState = when {
+                isLoadingWeatherConditions -> DroneDisplayState.Loading
+                weatherConditions is DroneConditionsResult.Success -> DroneDisplayState.Success(weatherConditions)
+                weatherConditions is DroneConditionsResult.Error -> DroneDisplayState.Error(weatherConditions.message)
+                else -> DroneDisplayState.Empty
+            }
+            AnimatedContent(
+                targetState = weatherDisplay,
+                transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(120)) },
+                label = "weather-conditions",
+            ) { display ->
+                when (display) {
+                    is DroneDisplayState.Loading -> Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp).size(16.dp))
+                    }
+                    is DroneDisplayState.Success -> {
+                        val c = display.conditions
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            DroneConditionRow(
+                                Icons.Filled.Thermostat,
+                                "${c.temperatureC.roundToInt()}°C, ${c.weatherDescription}",
+                            )
+                            if (c.isRainy) {
                                 DroneConditionRow(
-                                    Icons.Filled.Thermostat,
-                                    "${c.temperatureC.roundToInt()}°C, ${c.weatherDescription}",
+                                    icon = Icons.Filled.Warning,
+                                    text = if (c.precipitationProbabilityPercent != null) {
+                                        "Πιθανότητα βροχής ${c.precipitationProbabilityPercent}% - πάρε ομπρέλα!"
+                                    } else {
+                                        "Πιθανή βροχή - πάρε ομπρέλα!"
+                                    },
+                                    tint = MaterialTheme.colorScheme.error,
                                 )
+                            }
+                            if (hasDrone) {
                                 DroneConditionRow(
                                     Icons.Filled.Air,
                                     "Άνεμος: ${c.windSpeedKmh.roundToInt()} km/h (${windDirectionLabel(c.windDirectionDeg)})",
@@ -310,12 +352,14 @@ private fun LocationCard(
                                 )
                             }
                         }
-                        is DroneDisplayState.Error ->
-                            Text(display.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                        DroneDisplayState.Empty -> Row {}
                     }
+                    is DroneDisplayState.Error ->
+                        Text(display.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                    DroneDisplayState.Empty -> Row {}
                 }
+            }
 
+            if (hasDrone) {
                 val droneAwareContext = LocalContext.current
                 OutlinedButton(
                     onClick = {
@@ -344,10 +388,14 @@ private fun LocationCard(
 }
 
 @Composable
-private fun DroneConditionRow(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String) {
+private fun DroneConditionRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    text: String,
+    tint: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.tertiary,
+) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.tertiary)
-        Text(text, style = MaterialTheme.typography.bodyMedium)
+        Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp), tint = tint)
+        Text(text, style = MaterialTheme.typography.bodyMedium, color = tint)
     }
 }
 

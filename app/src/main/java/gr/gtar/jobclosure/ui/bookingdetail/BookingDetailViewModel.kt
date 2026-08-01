@@ -60,9 +60,10 @@ class BookingDetailViewModel(
             _uiState.value = _uiState.value.copy(booking = booking, settings = settings, isLoading = false)
             if (booking != null) {
                 refreshTravelTimes(booking, settings)
-                if (booking.hasDrone) {
-                    refreshDroneConditions(booking, settings)
-                }
+                // Weather (temperature, rain) is useful for every booking, not just drone ones -
+                // only the wind/elevation/DAGR extras this same fetch also carries are gated on
+                // hasDrone, and that gating happens in the screen, not here.
+                refreshDroneConditions(booking, settings)
             }
         }
     }
@@ -71,9 +72,7 @@ class BookingDetailViewModel(
         val booking = _uiState.value.booking ?: return
         viewModelScope.launch {
             refreshTravelTimes(booking, _uiState.value.settings)
-            if (booking.hasDrone) {
-                refreshDroneConditions(booking, _uiState.value.settings)
-            }
+            refreshDroneConditions(booking, _uiState.value.settings)
         }
     }
 

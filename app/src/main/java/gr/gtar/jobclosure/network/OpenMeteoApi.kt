@@ -20,7 +20,8 @@ interface OpenMeteoApi {
         @Query("start_date") startDate: String,
         @Query("end_date") endDate: String,
         @Query("daily") daily: String =
-            "weathercode,temperature_2m_max,temperature_2m_min,windspeed_10m_max,winddirection_10m_dominant",
+            "weathercode,temperature_2m_max,temperature_2m_min,windspeed_10m_max,winddirection_10m_dominant," +
+                "precipitation_probability_max",
         @Query("wind_speed_unit") windSpeedUnit: String = "kmh",
         @Query("timezone") timezone: String = "auto",
     ): DailyForecastResponse
@@ -54,4 +55,5 @@ data class DailyWeather(
     @Json(name = "temperature_2m_min") val temperatureMin: List<Double> = emptyList(),
     @Json(name = "windspeed_10m_max") val windSpeedMax: List<Double> = emptyList(),
     @Json(name = "winddirection_10m_dominant") val windDirectionDominant: List<Double> = emptyList(),
+    @Json(name = "precipitation_probability_max") val precipitationProbabilityMax: List<Int> = emptyList(),
 )

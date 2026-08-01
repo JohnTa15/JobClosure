@@ -12,11 +12,21 @@ sealed interface DroneConditionsResult {
         val windDirectionDeg: Double,
         val weatherDescription: String,
         val elevationMeters: Double,
+        /** True for rain/showers/storm weather codes, or a high forecast chance of rain - shown as
+         *  a red "bring an umbrella" warning regardless of whether the booking uses a drone. */
+        val isRainy: Boolean,
+        val precipitationProbabilityPercent: Int?,
     ) : DroneConditionsResult
 
     data class Error(val message: String) : DroneConditionsResult
 }
 
+/**
+ * Weather (and, for drone bookings, wind/elevation) conditions for a booking's date and venue.
+ * Shown for every booking, not just ones with a drone - temperature and rain are useful to know
+ * regardless, while wind speed/elevation/the DAGR airspace check are drone-specific extras the UI
+ * only surfaces when the booking has one.
+ */
 class DroneConditionsRepository(
     private val geocodingApi: GeocodingApi,
     private val nominatimApi: NominatimApi,
@@ -70,6 +80,7 @@ class DroneConditionsRepository(
             if (tempMax == null || tempMin == null || wind == null || code == null) {
                 return DroneConditionsResult.Error("Δεν βρέθηκαν δεδομένα καιρού για αυτή την ημερομηνία")
             }
+            val precipProbability = daily.precipitationProbabilityMax.getOrNull(index)
             val elevation = openMeteoApi.getElevation(location.first, location.second).elevation.firstOrNull()
 
             DroneConditionsResult.Success(
@@ -78,6 +89,8 @@ class DroneConditionsRepository(
                 windDirectionDeg = daily.windDirectionDominant.getOrElse(index) { 0.0 },
                 weatherDescription = weatherCodeToGreek(code),
                 elevationMeters = elevation ?: 0.0,
+                isRainy = isRainyCode(code) || (precipProbability != null && precipProbability >= RAIN_PROBABILITY_THRESHOLD),
+                precipitationProbabilityPercent = precipProbability,
             )
         } catch (e: Exception) {
             DroneConditionsResult.Error("Αποτυχία σύνδεσης: ${e.message ?: "άγνωστο σφάλμα"}")
@@ -117,8 +130,14 @@ class DroneConditionsRepository(
         else -> "Άγνωστες συνθήκες"
     }
 
+    /** Open-Meteo's rain/showers/thunderstorm WMO weather codes - snow and fog are excluded since
+     *  they don't call for the same "bring an umbrella" warning. */
+    private fun isRainyCode(code: Int): Boolean =
+        code in intArrayOf(51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99)
+
     companion object {
         private const val FORECAST_HORIZON_DAYS = 15L
         private const val PAST_HORIZON_DAYS = 5L
+        private const val RAIN_PROBABILITY_THRESHOLD = 50
     }
 }
