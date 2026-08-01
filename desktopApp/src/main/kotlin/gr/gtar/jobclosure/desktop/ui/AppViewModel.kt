@@ -2,6 +2,7 @@ package gr.gtar.jobclosure.desktop.ui
 
 import gr.gtar.jobclosure.desktop.auth.DesktopSettings
 import gr.gtar.jobclosure.desktop.auth.DesktopSettingsStore
+import gr.gtar.jobclosure.desktop.auth.EmbeddedGoogleCredentials
 import gr.gtar.jobclosure.desktop.auth.GoogleAuthManager
 import gr.gtar.jobclosure.desktop.update.DesktopUpdateChecker
 import gr.gtar.jobclosure.desktop.update.UpdateCheckResult
@@ -90,18 +91,25 @@ class AppViewModel(private val scope: CoroutineScope) {
     }
 
     fun signIn() {
-        val settings = currentSettings
-        if (settings.clientId.isBlank() || settings.clientSecret.isBlank()) {
+        // A build with embedded credentials (see EmbeddedGoogleCredentials) never needs the user
+        // to have typed their own - falls back to those only when nothing's been entered.
+        val clientId = currentSettings.clientId.ifBlank { EmbeddedGoogleCredentials.clientId }
+        val clientSecret = currentSettings.clientSecret.ifBlank { EmbeddedGoogleCredentials.clientSecret }
+        if (clientId.isBlank() || clientSecret.isBlank()) {
             _state.update { it.copy(errorMessage = "Συμπληρώστε πρώτα το Client ID και το Client Secret.") }
             return
         }
         scope.launch {
             _state.update { it.copy(isLoading = true, errorMessage = null) }
-            runCatching { authManager.signIn(settings.clientId, settings.clientSecret) }
+            runCatching { authManager.signIn(clientId, clientSecret) }
                 .onSuccess { token ->
                     cachedAccessToken = token.access_token
                     cachedAccessTokenExpiry = Instant.now().plusSeconds((token.expires_in - 60).toLong().coerceAtLeast(30))
-                    currentSettings = currentSettings.copy(refreshToken = token.refresh_token ?: currentSettings.refreshToken)
+                    currentSettings = currentSettings.copy(
+                        clientId = clientId,
+                        clientSecret = clientSecret,
+                        refreshToken = token.refresh_token ?: currentSettings.refreshToken,
+                    )
                     DesktopSettingsStore.save(currentSettings)
                     loadCalendars()
                 }

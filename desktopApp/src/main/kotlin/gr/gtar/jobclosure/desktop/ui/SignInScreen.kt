@@ -26,11 +26,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import gr.gtar.jobclosure.desktop.auth.EmbeddedGoogleCredentials
 import gr.gtar.jobclosure.shared.calendar.GCalCalendarListEntry
 
 /**
- * First-run screen: enter a Google Cloud OAuth "Desktop app" Client ID/Secret, sign in via the
- * system browser, then pick which calendar bookings should sync through.
+ * First-run screen: sign in via the system browser, then pick which calendar bookings should
+ * sync through. When this build has an embedded Google OAuth Client ID/Secret (see
+ * EmbeddedGoogleCredentials), that's all there is to it - the Client ID/Secret fields only show up
+ * as a fallback on a build without one baked in, where the user has to supply their own.
  */
 @Composable
 fun SignInScreen(
@@ -42,6 +45,7 @@ fun SignInScreen(
     var clientId by remember { mutableStateOf(state.settings.clientId) }
     var clientSecret by remember { mutableStateOf(state.settings.clientSecret) }
     var dronePartnerEmail by remember { mutableStateOf(state.settings.dronePartnerEmail) }
+    val needsManualCredentials = !EmbeddedGoogleCredentials.isConfigured
 
     Column(
         modifier = Modifier.fillMaxSize().padding(32.dp),
@@ -61,20 +65,22 @@ fun SignInScreen(
                 )
 
                 if (state.calendars.isEmpty()) {
-                    OutlinedTextField(
-                        value = clientId,
-                        onValueChange = { clientId = it },
-                        label = { Text("Google OAuth Client ID") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                    )
-                    OutlinedTextField(
-                        value = clientSecret,
-                        onValueChange = { clientSecret = it },
-                        label = { Text("Google OAuth Client Secret") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                    )
+                    if (needsManualCredentials) {
+                        OutlinedTextField(
+                            value = clientId,
+                            onValueChange = { clientId = it },
+                            label = { Text("Google OAuth Client ID") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+                        OutlinedTextField(
+                            value = clientSecret,
+                            onValueChange = { clientSecret = it },
+                            label = { Text("Google OAuth Client Secret") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+                    }
                     OutlinedTextField(
                         value = dronePartnerEmail,
                         onValueChange = { dronePartnerEmail = it },
@@ -88,7 +94,7 @@ fun SignInScreen(
                             onSaveCredentials(clientId.trim(), clientSecret.trim(), dronePartnerEmail.trim())
                             onSignIn()
                         },
-                        enabled = !state.isLoading && clientId.isNotBlank() && clientSecret.isNotBlank(),
+                        enabled = !state.isLoading && (!needsManualCredentials || (clientId.isNotBlank() && clientSecret.isNotBlank())),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(if (state.isLoading) "Σύνδεση..." else "Σύνδεση με Google")

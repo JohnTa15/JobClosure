@@ -39,16 +39,31 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.1")
 }
 
-// Bakes the same CI build number used for the packaged installer's own version into a small
-// resource file, so DesktopUpdateChecker/AppVersion can read the running app's version at runtime
-// (a plain Kotlin/JVM module like this one has no AGP-style BuildConfig to read it from otherwise).
+// Optional: a Google Cloud OAuth "Desktop app" Client ID/Secret baked in at build time (from
+// GitHub Actions secrets, never committed to source), so a fresh install can just show "Sign in
+// with Google" instead of asking the user to paste their own credentials in first. Left blank
+// (the default whenever these env vars aren't set - e.g. every build in this dev sandbox, and any
+// fork/local build without the secrets configured) SignInScreen falls back to today's manual-entry
+// form exactly as before, so this is additive and never a hard requirement to build the app.
+val embeddedGoogleClientId = System.getenv("GOOGLE_OAUTH_CLIENT_ID") ?: ""
+val embeddedGoogleClientSecret = System.getenv("GOOGLE_OAUTH_CLIENT_SECRET") ?: ""
+
+// Bakes the same CI build number used for the packaged installer's own version, plus the optional
+// embedded OAuth credentials above, into a small resource file - a plain Kotlin/JVM module like
+// this one has no AGP-style BuildConfig to read either of these from otherwise.
 val generateVersionProperties by tasks.registering {
     val outputDir = layout.buildDirectory.dir("generated/version")
     outputs.dir(outputDir)
+    inputs.property("embeddedGoogleClientId", embeddedGoogleClientId)
+    inputs.property("embeddedGoogleClientSecret", embeddedGoogleClientSecret)
     doLast {
         val file = outputDir.get().asFile.resolve("version.properties")
         file.parentFile.mkdirs()
-        file.writeText("version=1.0.${ciBuildNumber.coerceAtLeast(1)}\n")
+        file.writeText(
+            "version=1.0.${ciBuildNumber.coerceAtLeast(1)}\n" +
+                "embeddedGoogleClientId=$embeddedGoogleClientId\n" +
+                "embeddedGoogleClientSecret=$embeddedGoogleClientSecret\n",
+        )
     }
 }
 

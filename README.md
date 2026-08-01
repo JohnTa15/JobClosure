@@ -188,6 +188,13 @@ Google Calendar - όχι στιγμιαία, αλλά χωρίς κανένα ε
 Client ID/Secret και το refresh token αποθηκεύονται τοπικά σε `~/.jobclosure/config.properties` -
 όχι στο source code, όχι στο repository.
 
+**Προαιρετικό - να μη χρειάζεται να τα ξαναβάζεις σε κάθε νέο υπολογιστή**: αν προσθέσεις τα
+Client ID/Secret σαν *Repository secrets* στο GitHub (Settings → Secrets and variables → Actions)
+με τα ονόματα `GOOGLE_OAUTH_CLIENT_ID` και `GOOGLE_OAUTH_CLIENT_SECRET`, το CI τα ενσωματώνει στο
+build (μέσα από `desktopApp/build.gradle.kts`'s `generateVersionProperties`) και ο desktop client
+δείχνει κατευθείαν ένα απλό κουμπί **Σύνδεση με Google** χωρίς κανένα πεδίο Client ID/Secret -
+χρειάζεται μόνο μία φορά, σε ένα build, αντί σε κάθε εγκατάσταση.
+
 ## Άδειες
 
 - **Ημερολόγιο (READ_CALENDAR / WRITE_CALENDAR)**: για να μπορεί να διαβάσει ποια ημερολόγια
