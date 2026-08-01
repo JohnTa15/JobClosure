@@ -3,7 +3,11 @@ package gr.gtar.jobclosure.desktop.ui
 import gr.gtar.jobclosure.desktop.auth.DesktopSettings
 import gr.gtar.jobclosure.desktop.auth.DesktopSettingsStore
 import gr.gtar.jobclosure.desktop.auth.GoogleAuthManager
+import gr.gtar.jobclosure.desktop.update.DesktopUpdateChecker
+import gr.gtar.jobclosure.desktop.update.UpdateCheckResult
 import gr.gtar.jobclosure.shared.calendar.GCalCalendarListEntry
+import gr.gtar.jobclosure.shared.changelog.CHANGELOG_HISTORY
+import gr.gtar.jobclosure.shared.changelog.ChangelogEntry
 import gr.gtar.jobclosure.shared.changelog.CURRENT_CHANGELOG_ID
 import gr.gtar.jobclosure.shared.calendar.GoogleCalendarRepository
 import gr.gtar.jobclosure.shared.calendar.GoogleOAuthTokenService
@@ -22,6 +26,7 @@ sealed interface Screen {
     data object SignIn : Screen
     data object List : Screen
     data class Edit(val booking: Booking, val isNew: Boolean) : Screen
+    data object Settings : Screen
 }
 
 data class AppUiState(
@@ -33,7 +38,10 @@ data class AppUiState(
     val errorMessage: String? = null,
     val pendingConflicts: kotlin.collections.List<Booking> = emptyList(),
     val pendingSave: Booking? = null,
-    val showChangelog: Boolean = false,
+    val unseenChangelogEntries: kotlin.collections.List<ChangelogEntry> = emptyList(),
+    val isShowingChangelogHistory: Boolean = false,
+    val updateCheckResult: UpdateCheckResult? = null,
+    val isCheckingForUpdate: Boolean = false,
 )
 
 /**
@@ -51,12 +59,13 @@ class AppViewModel(private val scope: CoroutineScope) {
     private var cachedAccessTokenExpiry: Instant = Instant.EPOCH
 
     private val repository = GoogleCalendarRepository(httpClient) { getAccessToken() }
+    private val updateChecker = DesktopUpdateChecker(httpClient)
 
     private val _state = MutableStateFlow(
         AppUiState(
             settings = currentSettings,
             isLoading = false,
-            showChangelog = currentSettings.changelogLastSeenId < CURRENT_CHANGELOG_ID,
+            unseenChangelogEntries = CHANGELOG_HISTORY.filter { it.id > currentSettings.changelogLastSeenId },
         ),
     )
     val state: StateFlow<AppUiState> = _state.asStateFlow()
@@ -66,6 +75,7 @@ class AppViewModel(private val scope: CoroutineScope) {
             _state.update { it.copy(screen = Screen.List) }
             loadBookings()
         }
+        checkForUpdate()
     }
 
     fun updateSettingsFields(clientId: String, clientSecret: String, dronePartnerEmail: String) {
@@ -195,10 +205,46 @@ class AppViewModel(private val scope: CoroutineScope) {
         _state.update { it.copy(errorMessage = null) }
     }
 
+    fun openSettings() {
+        _state.update { it.copy(screen = Screen.Settings) }
+    }
+
+    fun closeSettings() {
+        _state.update { it.copy(screen = Screen.List) }
+    }
+
+    fun setGitHubToken(token: String) {
+        currentSettings = currentSettings.copy(gitHubToken = token)
+        DesktopSettingsStore.save(currentSettings)
+        _state.update { it.copy(settings = currentSettings) }
+    }
+
+    fun setDronePartnerEmail(email: String) {
+        currentSettings = currentSettings.copy(dronePartnerEmail = email)
+        DesktopSettingsStore.save(currentSettings)
+        _state.update { it.copy(settings = currentSettings) }
+    }
+
+    fun checkForUpdate() {
+        scope.launch {
+            _state.update { it.copy(isCheckingForUpdate = true) }
+            val result = updateChecker.checkForUpdate(currentSettings.gitHubToken)
+            _state.update { it.copy(isCheckingForUpdate = false, updateCheckResult = result) }
+        }
+    }
+
+    fun dismissUpdateNotice() {
+        _state.update { it.copy(updateCheckResult = null) }
+    }
+
     fun dismissChangelog() {
         currentSettings = currentSettings.copy(changelogLastSeenId = CURRENT_CHANGELOG_ID)
         DesktopSettingsStore.save(currentSettings)
-        _state.update { it.copy(showChangelog = false) }
+        _state.update { it.copy(unseenChangelogEntries = emptyList(), isShowingChangelogHistory = false) }
+    }
+
+    fun showChangelogHistory() {
+        _state.update { it.copy(unseenChangelogEntries = CHANGELOG_HISTORY, isShowingChangelogHistory = true) }
     }
 
     private suspend fun getAccessToken(): String {

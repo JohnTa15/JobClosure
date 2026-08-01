@@ -3,6 +3,9 @@ package gr.gtar.jobclosure.desktop
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.NewReleases
@@ -10,8 +13,10 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -28,9 +33,11 @@ import androidx.compose.ui.window.rememberWindowState
 import gr.gtar.jobclosure.desktop.ui.AppViewModel
 import gr.gtar.jobclosure.desktop.ui.BookingEditScreen
 import gr.gtar.jobclosure.desktop.ui.BookingListScreen
+import gr.gtar.jobclosure.desktop.ui.DesktopSettingsScreen
 import gr.gtar.jobclosure.desktop.ui.Screen
 import gr.gtar.jobclosure.desktop.ui.SignInScreen
-import gr.gtar.jobclosure.shared.changelog.CURRENT_CHANGELOG_ITEMS
+import gr.gtar.jobclosure.desktop.update.UpdateCheckResult
+import gr.gtar.jobclosure.desktop.util.openInBrowser
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
@@ -45,6 +52,23 @@ fun main() = application {
         state.errorMessage?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.dismissError()
+        }
+    }
+
+    // Notifies once per fresh check result - doesn't download or install anything itself, just
+    // points at the release so a manual install can happen the same way it always has.
+    LaunchedEffect(state.updateCheckResult) {
+        val result = state.updateCheckResult
+        if (result is UpdateCheckResult.UpdateAvailable) {
+            val action = snackbarHostState.showSnackbar(
+                message = "Διαθέσιμη νέα έκδοση: ${result.versionName}",
+                actionLabel = "Λήψη",
+                duration = SnackbarDuration.Long,
+            )
+            if (action == SnackbarResult.ActionPerformed) {
+                openInBrowser(result.downloadUrl)
+            }
+            viewModel.dismissUpdateNotice()
         }
     }
 
@@ -68,6 +92,15 @@ fun main() = application {
                         state = state,
                         onAddBooking = { viewModel.startNewBooking() },
                         onOpenBooking = { viewModel.startEditBooking(it) },
+                        onOpenSettings = { viewModel.openSettings() },
+                    )
+                    is Screen.Settings -> DesktopSettingsScreen(
+                        state = state,
+                        onSaveGitHubToken = { viewModel.setGitHubToken(it) },
+                        onSaveDronePartnerEmail = { viewModel.setDronePartnerEmail(it) },
+                        onCheckForUpdate = { viewModel.checkForUpdate() },
+                        onShowChangelogHistory = { viewModel.showChangelogHistory() },
+                        onBack = { viewModel.closeSettings() },
                     )
                     is Screen.Edit -> BookingEditScreen(
                         booking = screen.booking,
@@ -82,21 +115,35 @@ fun main() = application {
             }
             SnackbarHost(hostState = snackbarHostState)
 
-            if (state.showChangelog) {
+            if (state.unseenChangelogEntries.isNotEmpty()) {
                 AlertDialog(
                     onDismissRequest = { viewModel.dismissChangelog() },
                     icon = { Icon(Icons.Filled.NewReleases, contentDescription = null) },
-                    title = { Text("Τι νέο υπάρχει") },
+                    title = { Text(if (state.isShowingChangelogHistory) "Ιστορικό ενημερώσεων" else "Τι νέο υπάρχει") },
                     text = {
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            CURRENT_CHANGELOG_ITEMS.forEach { item ->
-                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
-                                    Icon(
-                                        Icons.Filled.CheckCircle,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.tertiary,
-                                    )
-                                    Text(item, style = MaterialTheme.typography.bodyMedium)
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                            modifier = Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState()),
+                        ) {
+                            state.unseenChangelogEntries.sortedByDescending { it.id }.forEach { entry ->
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    if (state.unseenChangelogEntries.size > 1) {
+                                        Text(
+                                            "Ενημέρωση #${entry.id}",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.tertiary,
+                                        )
+                                    }
+                                    entry.items.forEach { item ->
+                                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+                                            Icon(
+                                                Icons.Filled.CheckCircle,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.tertiary,
+                                            )
+                                            Text(item, style = MaterialTheme.typography.bodyMedium)
+                                        }
+                                    }
                                 }
                             }
                         }

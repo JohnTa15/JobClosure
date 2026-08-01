@@ -30,6 +30,32 @@ dependencies {
     implementation(compose.materialIconsExtended)
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.9.0")
+    // For DesktopUpdateChecker's own @Serializable GitHub API response classes - shared's own use
+    // of kotlinx.serialization is `implementation`-scoped there, so it isn't visible here.
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+}
+
+// Bakes the same CI build number used for the packaged installer's own version into a small
+// resource file, so DesktopUpdateChecker/AppVersion can read the running app's version at runtime
+// (a plain Kotlin/JVM module like this one has no AGP-style BuildConfig to read it from otherwise).
+val generateVersionProperties by tasks.registering {
+    val outputDir = layout.buildDirectory.dir("generated/version")
+    outputs.dir(outputDir)
+    doLast {
+        val file = outputDir.get().asFile.resolve("version.properties")
+        file.parentFile.mkdirs()
+        file.writeText("version=1.0.${ciBuildNumber.coerceAtLeast(1)}\n")
+    }
+}
+
+sourceSets {
+    main {
+        resources.srcDir(generateVersionProperties)
+    }
+}
+
+tasks.named("processResources") {
+    dependsOn(generateVersionProperties)
 }
 
 compose.desktop {
