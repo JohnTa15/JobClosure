@@ -27,8 +27,10 @@ data class BookingEditUiState(
     val title: String = "",
     val type: BookingType = BookingType.WEDDING,
     val notes: String = "",
+    val clientPhone: String = "",
     val isConfirmed: Boolean = true,
     val hasDrone: Boolean = false,
+    val price: Double = 0.0,
     val churchName: String = "",
     val churchAddress: String = "",
     val ceremonyStart: LocalDateTime = LocalDateTime.now().plusDays(1).withHour(11).withMinute(0),
@@ -52,6 +54,15 @@ data class BookingEditUiState(
     val mapsApiKey: String = "",
 ) {
     val isChurchSacrament get() = type.isChurchSacrament
+
+    /** Reception-only estimate at RECEPTION_EURO_PER_HOUR/hour (no drone surcharge) - a hint while
+     *  filling in [price] by hand, not stored anywhere itself. */
+    val suggestedReceptionPrice: Double
+        get() = if (hasReception) (receptionDurationMinutes / 60.0) * RECEPTION_EURO_PER_HOUR else 0.0
+
+    companion object {
+        const val RECEPTION_EURO_PER_HOUR = 30.0
+    }
 }
 
 class BookingEditViewModel(
@@ -77,8 +88,10 @@ class BookingEditViewModel(
                     title = existing.title,
                     type = existing.type,
                     notes = existing.notes,
+                    clientPhone = existing.clientPhone,
                     isConfirmed = existing.isConfirmed,
                     hasDrone = existing.hasDrone,
+                    price = existing.price,
                     churchName = existing.churchName,
                     churchAddress = existing.churchAddress,
                     ceremonyStart = existing.ceremonyStart,
@@ -152,6 +165,8 @@ class BookingEditViewModel(
                         isConfirmed = state.isConfirmed,
                         title = booking.title,
                         venueName = booking.churchName,
+                        clientPhone = booking.clientPhone,
+                        price = booking.price,
                     ),
                 )
                 val churchStartMillis = booking.ceremonyStart.toMillis()
@@ -257,8 +272,10 @@ private fun BookingEditUiState.toBooking(): Booking = Booking(
     title = title,
     type = type,
     notes = notes,
+    clientPhone = clientPhone,
     isConfirmed = isConfirmed,
     hasDrone = hasDrone,
+    price = price,
     churchName = churchName,
     churchAddress = churchAddress,
     ceremonyStart = ceremonyStart,

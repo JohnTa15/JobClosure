@@ -35,12 +35,18 @@ data class Booking(
     val title: String,
     val type: BookingType,
     val notes: String = "",
+    val clientPhone: String = "",
 
     // false = only tentatively booked, not yet confirmed by the client - shown with a "?" marker
     // instead of treating it the same as a firmly closed job.
     val isConfirmed: Boolean = true,
 
     val hasDrone: Boolean = false,
+
+    // Total agreed price for the whole job, in euros. Entered by hand - the only thing computed
+    // for the user is a suggested reception-only amount (receptionDurationMinutes hours x 30€/h,
+    // no drone surcharge), shown as a hint while editing.
+    val price: Double = 0.0,
 
     // Church ceremony (relevant when type.isChurchSacrament)
     val churchName: String = "",

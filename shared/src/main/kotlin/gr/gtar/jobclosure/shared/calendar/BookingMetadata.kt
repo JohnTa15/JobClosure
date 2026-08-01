@@ -14,6 +14,8 @@ data class BookingMetadata(
     val isConfirmed: Boolean = true,
     val title: String? = null,
     val venueName: String? = null,
+    val clientPhone: String? = null,
+    val price: Double? = null,
 )
 
 /**

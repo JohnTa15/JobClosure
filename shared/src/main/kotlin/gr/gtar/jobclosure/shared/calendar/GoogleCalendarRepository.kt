@@ -75,6 +75,8 @@ class GoogleCalendarRepository(
             isConfirmed = booking.isConfirmed,
             title = booking.title,
             venueName = booking.churchName,
+            clientPhone = booking.clientPhone,
+            price = booking.price,
         )
         val ceremonyEvent = GCalEvent(
             summary = "${booking.type.displayName}: ${booking.title}",
@@ -169,6 +171,8 @@ class GoogleCalendarRepository(
             notes = BookingMetadataCodec.userNotes(ceremony.description),
             hasDrone = ceremonyMetadata.hasDrone,
             isConfirmed = ceremonyMetadata.isConfirmed,
+            clientPhone = ceremonyMetadata.clientPhone ?: "",
+            price = ceremonyMetadata.price ?: 0.0,
             churchName = ceremonyMetadata.venueName ?: "",
             churchAddress = ceremony.location ?: "",
             ceremonyStart = ceremonyStart,

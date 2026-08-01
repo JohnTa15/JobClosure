@@ -44,11 +44,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import gr.gtar.jobclosure.calendar.CalendarInfo
 import gr.gtar.jobclosure.data.BookingType
 import gr.gtar.jobclosure.ui.components.AutocompleteAddressField
 import gr.gtar.jobclosure.ui.components.DateTimePickerField
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -96,6 +98,14 @@ fun BookingEditScreen(
                 value = state.title,
                 onValueChange = { value -> viewModel.update { it.copy(title = value) } },
                 label = { Text("Πελάτης / Τίτλος") },
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            OutlinedTextField(
+                value = state.clientPhone,
+                onValueChange = { value -> viewModel.update { it.copy(clientPhone = value) } },
+                label = { Text("Τηλέφωνο πελάτη") },
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Phone),
                 modifier = Modifier.fillMaxWidth(),
             )
 
@@ -237,10 +247,36 @@ fun BookingEditScreen(
                         label = { Text("Διάρκεια δεξίωσης (λεπτά)") },
                         modifier = Modifier.fillMaxWidth(),
                     )
+                    Text(
+                        String.format(
+                            Locale.US,
+                            "Ενδεικτική τιμή δεξίωσης: %.0f€ (%.1f ώρες x %.0f€/ώρα, χωρίς drone)",
+                            state.suggestedReceptionPrice,
+                            state.receptionDurationMinutes / 60.0,
+                            BookingEditUiState.RECEPTION_EURO_PER_HOUR,
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
 
             HorizontalDivider()
+            OutlinedTextField(
+                value = if (state.price == 0.0) "" else state.price.toString(),
+                onValueChange = { value ->
+                    val amount = value.toDoubleOrNull()
+                    if (value.isBlank()) {
+                        viewModel.update { it.copy(price = 0.0) }
+                    } else if (amount != null) {
+                        viewModel.update { it.copy(price = amount) }
+                    }
+                },
+                label = { Text("Τιμή (€)") },
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth(),
+            )
+
             OutlinedTextField(
                 value = state.notes,
                 onValueChange = { value -> viewModel.update { it.copy(notes = value) } },
