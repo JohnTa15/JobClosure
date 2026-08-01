@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -49,7 +50,9 @@ import gr.gtar.jobclosure.BuildConfig
 import gr.gtar.jobclosure.data.MapsProvider
 import gr.gtar.jobclosure.location.LocationHelper
 import gr.gtar.jobclosure.location.LocationResult
+import gr.gtar.jobclosure.shared.changelog.CHANGELOG_HISTORY
 import gr.gtar.jobclosure.ui.components.AutocompleteAddressField
+import gr.gtar.jobclosure.ui.components.ChangelogDialog
 import gr.gtar.jobclosure.update.ApkUpdateManager
 import gr.gtar.jobclosure.update.DownloadResult
 import gr.gtar.jobclosure.update.UpdateCheckResult
@@ -318,6 +321,7 @@ private fun UpdateSection(viewModel: SettingsViewModel) {
     var isDownloading by remember { mutableStateOf(false) }
     var downloadError by remember { mutableStateOf<String?>(null) }
     var showInstallPermissionDialog by remember { mutableStateOf(false) }
+    var showChangelogHistory by remember { mutableStateOf(false) }
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -387,7 +391,19 @@ private fun UpdateSection(viewModel: SettingsViewModel) {
                 Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
                 Text("Έλεγχος για ενημέρωση τώρα")
             }
+            TextButton(onClick = { showChangelogHistory = true }) {
+                Icon(Icons.Filled.History, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
+                Text("Ιστορικό ενημερώσεων")
+            }
         }
+    }
+
+    if (showChangelogHistory) {
+        ChangelogDialog(
+            entries = CHANGELOG_HISTORY,
+            onDismiss = { showChangelogHistory = false },
+            title = "Ιστορικό ενημερώσεων",
+        )
     }
 
     if (showInstallPermissionDialog) {

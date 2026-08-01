@@ -8,6 +8,8 @@ import gr.gtar.jobclosure.data.Booking
 import gr.gtar.jobclosure.data.BookingRepository
 import gr.gtar.jobclosure.data.BookingType
 import gr.gtar.jobclosure.data.SettingsRepository
+import gr.gtar.jobclosure.shared.changelog.CHANGELOG_HISTORY
+import gr.gtar.jobclosure.shared.changelog.ChangelogEntry
 import gr.gtar.jobclosure.shared.changelog.CURRENT_CHANGELOG_ID
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -36,11 +38,12 @@ class BookingListViewModel(
     private val _pendingDelete = MutableStateFlow<Booking?>(null)
     val pendingDelete: StateFlow<Booking?> = _pendingDelete
 
-    /** True once, right after an update, until the user dismisses the "what's new" dialog. */
-    val showChangelog: StateFlow<Boolean> =
+    /** Entries not yet shown, right after an update, until the user dismisses the "what's new"
+     *  dialog - can be more than one if several updates happened between app opens. */
+    val unseenChangelogEntries: StateFlow<List<ChangelogEntry>> =
         settingsRepository.settings
-            .map { it.changelogLastSeenId < CURRENT_CHANGELOG_ID }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+            .map { settings -> CHANGELOG_HISTORY.filter { it.id > settings.changelogLastSeenId } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun dismissChangelog() {
         viewModelScope.launch { settingsRepository.markChangelogSeen(CURRENT_CHANGELOG_ID) }

@@ -74,7 +74,7 @@ fun BookingListScreen(
     val bookings by viewModel.bookings.collectAsState()
     val filter by viewModel.filter.collectAsState()
     val pendingDelete by viewModel.pendingDelete.collectAsState()
-    val showChangelog by viewModel.showChangelog.collectAsState()
+    val unseenChangelogEntries by viewModel.unseenChangelogEntries.collectAsState()
 
     Scaffold(
         topBar = {
@@ -167,8 +167,8 @@ fun BookingListScreen(
         )
     }
 
-    if (showChangelog) {
-        ChangelogDialog(onDismiss = { viewModel.dismissChangelog() })
+    if (unseenChangelogEntries.isNotEmpty()) {
+        ChangelogDialog(entries = unseenChangelogEntries, onDismiss = { viewModel.dismissChangelog() })
     }
 }
 
