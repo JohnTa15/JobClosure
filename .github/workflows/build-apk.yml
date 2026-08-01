@@ -106,10 +106,41 @@ jobs:
           name: jobclosure-macos-dmg
           path: desktopApp/build/compose/binaries/main/dmg/*.dmg
 
+  build-desktop-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Package Linux installer (.deb)
+        run: ./gradlew :desktopApp:packageDistributionForCurrentOS --stacktrace
+
+      - name: Show jpackage logs on failure
+        if: failure()
+        run: |
+          find desktopApp/build/compose/logs -type f 2>/dev/null | while read -r f; do
+            echo "----- $f -----"
+            cat "$f"
+          done
+
+      - name: Upload .deb as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jobclosure-linux-deb
+          path: desktopApp/build/compose/binaries/main/deb/*.deb
+
   # Runs after every platform build has produced its artifact, and does the actual GitHub Release
-  # publishing once - avoids three jobs racing to create/update the same "debug-latest" release.
+  # publishing once - avoids the jobs racing to create/update the same "debug-latest" release.
   publish-release:
-    needs: [build-android, build-desktop-windows, build-desktop-macos]
+    needs: [build-android, build-desktop-windows, build-desktop-macos, build-desktop-linux]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -151,7 +182,9 @@ jobs:
             - Android: αρχείο .apk
             - Windows: αρχείο .msi
             - macOS: αρχείο .dmg
+            - Linux: αρχείο .deb
           files: |
             release-assets/jobclosure-android-apk/*.apk
             release-assets/jobclosure-windows-msi/*.msi
             release-assets/jobclosure-macos-dmg/*.dmg
+            release-assets/jobclosure-linux-deb/*.deb
