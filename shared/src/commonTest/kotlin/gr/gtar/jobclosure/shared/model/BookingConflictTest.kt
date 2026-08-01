@@ -1,6 +1,6 @@
 package gr.gtar.jobclosure.shared.model
 
-import java.time.Instant
+import kotlinx.datetime.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -17,10 +17,10 @@ class BookingConflictTest {
         eventId = "e-$startEpochSeconds",
         title = "Test",
         type = BookingType.WEDDING,
-        ceremonyStart = Instant.ofEpochSecond(startEpochSeconds),
+        ceremonyStart = Instant.fromEpochSeconds(startEpochSeconds),
         ceremonyDurationMinutes = durationMinutes,
         hasReception = hasReception,
-        receptionStart = receptionStartEpochSeconds?.let { Instant.ofEpochSecond(it) },
+        receptionStart = receptionStartEpochSeconds?.let { Instant.fromEpochSeconds(it) },
         receptionDurationMinutes = receptionDurationMinutes,
     )
 

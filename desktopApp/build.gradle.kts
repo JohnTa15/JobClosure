@@ -33,6 +33,10 @@ dependencies {
     // For DesktopUpdateChecker's own @Serializable GitHub API response classes - shared's own use
     // of kotlinx.serialization is `implementation`-scoped there, so it isn't visible here.
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+    // shared.model.Booking's dates are kotlinx.datetime.Instant (multiplatform, so it also works
+    // on iOS) - this pulls in just the toJavaInstant()/toKotlinInstant() interop conversions so
+    // this JVM-only app's own UI code can keep using plain java.time/DateTimeFormatter.
+    implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.1")
 }
 
 // Bakes the same CI build number used for the packaged installer's own version into a small

@@ -33,9 +33,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import gr.gtar.jobclosure.shared.model.Booking
 import gr.gtar.jobclosure.shared.model.BookingType
+import kotlinx.datetime.toJavaInstant
+import kotlinx.datetime.toKotlinInstant
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlin.time.Duration.Companion.seconds
 
 private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
@@ -58,14 +61,15 @@ fun BookingEditScreen(
     var hasDrone by remember { mutableStateOf(booking.hasDrone) }
     var churchName by remember { mutableStateOf(booking.churchName) }
     var churchAddress by remember { mutableStateOf(booking.churchAddress) }
-    val ceremonyLocal = booking.ceremonyStart.atZone(zone).toLocalDateTime()
+    val ceremonyLocal = booking.ceremonyStart.toJavaInstant().atZone(zone).toLocalDateTime()
     var ceremonyDate by remember { mutableStateOf(ceremonyLocal.format(dateFormatter)) }
     var ceremonyTime by remember { mutableStateOf(ceremonyLocal.format(timeFormatter)) }
     var ceremonyDuration by remember { mutableStateOf(booking.ceremonyDurationMinutes.toString()) }
     var hasReception by remember { mutableStateOf(booking.hasReception) }
     var receptionVenueName by remember { mutableStateOf(booking.receptionVenueName) }
     var receptionVenueAddress by remember { mutableStateOf(booking.receptionVenueAddress) }
-    val receptionLocal = (booking.receptionStart ?: booking.ceremonyStart.plusSeconds(3600)).atZone(zone).toLocalDateTime()
+    val receptionLocal = (booking.receptionStart ?: booking.ceremonyStart.plus(3600.seconds))
+        .toJavaInstant().atZone(zone).toLocalDateTime()
     var receptionDate by remember { mutableStateOf(receptionLocal.format(dateFormatter)) }
     var receptionTime by remember { mutableStateOf(receptionLocal.format(timeFormatter)) }
     var receptionDuration by remember { mutableStateOf(booking.receptionDurationMinutes.toString()) }
@@ -165,7 +169,10 @@ fun BookingEditScreen(
             text = {
                 Column {
                     Text("Υπάρχει ήδη κράτηση αυτό το διάστημα:")
-                    conflicts.forEach { Text("• ${it.title} (${it.ceremonyStart.atZone(zone).format(dateFormatter)} ${it.ceremonyStart.atZone(zone).format(timeFormatter)})") }
+                    conflicts.forEach {
+                        val start = it.ceremonyStart.toJavaInstant().atZone(zone)
+                        Text("• ${it.title} (${start.format(dateFormatter)} ${start.format(timeFormatter)})")
+                    }
                 }
             },
             confirmButton = {
@@ -206,6 +213,6 @@ private fun TypeDropdown(selected: BookingType, onSelect: (BookingType) -> Unit)
     }
 }
 
-private fun parseDateTime(date: String, time: String, zone: ZoneId): java.time.Instant? = runCatching {
-    LocalDateTime.parse("${date.trim()}T${time.trim()}").atZone(zone).toInstant()
+private fun parseDateTime(date: String, time: String, zone: ZoneId): kotlinx.datetime.Instant? = runCatching {
+    LocalDateTime.parse("${date.trim()}T${time.trim()}").atZone(zone).toInstant().toKotlinInstant()
 }.getOrNull()

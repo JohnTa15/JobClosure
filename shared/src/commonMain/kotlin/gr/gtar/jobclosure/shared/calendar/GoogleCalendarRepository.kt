@@ -14,9 +14,12 @@ import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.http.encodeURLPathPart
-import java.time.Duration
-import java.time.Instant
-import java.time.ZoneId
+import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.offsetAt
+import kotlinx.datetime.toLocalDateTime
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Reads and writes bookings as Google Calendar events, carrying the structured fields a plain
@@ -47,7 +50,7 @@ class GoogleCalendarRepository(
             parameter("singleEvents", "true")
             parameter("maxResults", "2500")
             parameter("orderBy", "startTime")
-            parameter("timeMin", Instant.now().minusSeconds(SECONDS_PER_DAY * 30).toString())
+            parameter("timeMin", (Clock.System.now() - (SECONDS_PER_DAY * 30).seconds).toString())
         }.body()
 
         val jobClosureEvents = response.items.mapNotNull { event ->
@@ -190,10 +193,12 @@ class GoogleCalendarRepository(
     }
 
     private fun minutesBetween(start: Instant, end: Instant): Int =
-        Duration.between(start, end).toMinutes().toInt().coerceAtLeast(1)
+        (end - start).inWholeMinutes.toInt().coerceAtLeast(1)
 
-    private fun Instant.toGCalDateTime(): GCalEventDateTime =
-        GCalEventDateTime(dateTime = this.atZone(ZoneId.systemDefault()).toOffsetDateTime().toString())
+    private fun Instant.toGCalDateTime(): GCalEventDateTime {
+        val zone = TimeZone.currentSystemDefault()
+        return GCalEventDateTime(dateTime = "${toLocalDateTime(zone)}${zone.offsetAt(this)}")
+    }
 
     private companion object {
         const val SECONDS_PER_DAY = 86_400L

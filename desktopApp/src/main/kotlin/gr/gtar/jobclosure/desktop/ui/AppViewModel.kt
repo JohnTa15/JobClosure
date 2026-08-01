@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.datetime.toKotlinInstant
 import java.time.Instant
 
 sealed interface Screen {
@@ -146,7 +147,7 @@ class AppViewModel(private val scope: CoroutineScope) {
         val blank = Booking(
             title = "",
             type = gr.gtar.jobclosure.shared.model.BookingType.WEDDING,
-            ceremonyStart = Instant.now().plusSeconds(86_400),
+            ceremonyStart = Instant.now().plusSeconds(86_400).toKotlinInstant(),
         )
         _state.update { it.copy(screen = Screen.Edit(blank, isNew = true)) }
     }

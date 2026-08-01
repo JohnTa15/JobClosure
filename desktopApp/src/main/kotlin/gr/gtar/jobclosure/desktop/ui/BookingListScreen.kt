@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import gr.gtar.jobclosure.shared.model.Booking
+import kotlinx.datetime.toJavaInstant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
@@ -101,7 +102,7 @@ private fun BookingRow(booking: Booking, onClick: () -> Unit) {
             }
             Text(booking.type.displayName, style = MaterialTheme.typography.bodySmall)
             Text(
-                booking.ceremonyStart.atZone(ZoneId.systemDefault()).format(displayFormatter),
+                booking.ceremonyStart.toJavaInstant().atZone(ZoneId.systemDefault()).format(displayFormatter),
                 style = MaterialTheme.typography.bodyMedium,
             )
             if (booking.hasReception) {

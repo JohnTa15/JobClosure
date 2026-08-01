@@ -1,6 +1,9 @@
 package gr.gtar.jobclosure.shared.model
 
-import java.time.Instant
+import kotlinx.datetime.Instant
+import kotlin.time.Duration.Companion.minutes
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 enum class BookingType(val displayName: String) {
     WEDDING("Γάμος"),
@@ -19,10 +22,11 @@ enum class BookingType(val displayName: String) {
  * ceremony event, plus an optional separate reception event), no local database. [eventId]/
  * [receptionEventId] are null for a booking that hasn't been saved (created) yet.
  */
+@OptIn(ExperimentalUuidApi::class)
 data class Booking(
     /** Correlates the ceremony and reception Calendar events that make up one booking. Stable
      *  across edits; generated fresh only when a booking is first created. */
-    val bookingId: String = java.util.UUID.randomUUID().toString(),
+    val bookingId: String = Uuid.random().toString(),
     val eventId: String? = null,
     val receptionEventId: String? = null,
     val title: String,
@@ -43,8 +47,8 @@ data class Booking(
     val receptionStart: Instant? = null,
     val receptionDurationMinutes: Int = 240,
 ) {
-    val ceremonyEnd: Instant get() = ceremonyStart.plusSeconds(ceremonyDurationMinutes * 60L)
-    val receptionEnd: Instant? get() = receptionStart?.plusSeconds(receptionDurationMinutes * 60L)
+    val ceremonyEnd: Instant get() = ceremonyStart + ceremonyDurationMinutes.minutes
+    val receptionEnd: Instant? get() = receptionStart?.plus(receptionDurationMinutes.minutes)
 
     val occupiedStart: Instant get() = ceremonyStart
 
