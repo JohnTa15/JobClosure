@@ -73,6 +73,7 @@ import gr.gtar.jobclosure.ui.components.AutocompleteAddressField
 import gr.gtar.jobclosure.ui.components.ChangelogDialog
 import gr.gtar.jobclosure.ui.components.NewIconButton
 import gr.gtar.jobclosure.ui.components.NewSectionLabel
+import gr.gtar.jobclosure.ui.components.NewSelectableSwatch
 import gr.gtar.jobclosure.ui.components.NewSwitch
 import gr.gtar.jobclosure.ui.theme.AppTheme
 import gr.gtar.jobclosure.ui.theme.AppThemePalettes
@@ -372,7 +373,7 @@ private fun ThemeSection(selected: AppTheme, onSelect: (AppTheme) -> Unit) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             AppTheme.entries.forEach { theme ->
                 val themePalette = AppThemePalettes.getValue(theme)
-                gr.gtar.jobclosure.ui.components.NewSelectableSwatch(
+                NewSelectableSwatch(
                     label = theme.label,
                     selected = theme == selected,
                     swatchBrush = Brush.linearGradient(listOf(themePalette.swatchStart, themePalette.swatchEnd)),
