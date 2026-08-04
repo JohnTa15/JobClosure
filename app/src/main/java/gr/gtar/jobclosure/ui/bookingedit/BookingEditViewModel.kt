@@ -52,6 +52,7 @@ data class BookingEditUiState(
     val receptionCalendarEventId: Long? = null,
     val mapsProvider: MapsProvider = MapsProvider.OPENSTREETMAP,
     val mapsApiKey: String = "",
+    val themeKey: String = "nocturne",
 ) {
     val isChurchSacrament get() = type.isChurchSacrament
 
@@ -108,6 +109,7 @@ class BookingEditViewModel(
                     receptionCalendarEventId = existing.receptionCalendarEventId,
                     mapsProvider = settings.mapsProvider,
                     mapsApiKey = settings.mapsApiKey,
+                    themeKey = settings.themeKey,
                 )
             } else {
                 _uiState.value.copy(
@@ -116,6 +118,7 @@ class BookingEditViewModel(
                     isLoading = false,
                     mapsProvider = settings.mapsProvider,
                     mapsApiKey = settings.mapsApiKey,
+                    themeKey = settings.themeKey,
                 )
             }
         }

@@ -32,6 +32,13 @@ val CHANGELOG_HISTORY: List<ChangelogEntry> = listOf(
             "Μπορείς τώρα να ξαναδείς παλιότερες ενημερώσεις από τις Ρυθμίσεις.",
         ),
     ),
+    ChangelogEntry(
+        id = 3,
+        items = listOf(
+            "Νέα, προαιρετική εμφάνιση με 4 θέματα χρωμάτων (Nocturne/Aurora/Ember/Bloom) και κινούμενα εφέ - ενεργοποίησέ τη από τις Ρυθμίσεις (\"Νέα εμφάνιση\") και απενεργοποίησέ τη όποτε θέλεις.",
+            "Κάθε τύπος δουλειάς (γάμος, βάφτιση, σχολική, παράσταση...) έχει πλέον το δικό του χρώμα, ίδιο σε όλα τα θέματα.",
+        ),
+    ),
 )
 
 /** The most recent changelog id - a platform is "up to date" on changelogs once it has shown this. */

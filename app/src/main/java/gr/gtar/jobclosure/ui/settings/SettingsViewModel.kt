@@ -50,6 +50,14 @@ class SettingsViewModel(
         viewModelScope.launch { repository.setGitHubToken(token) }
     }
 
+    fun setUseNewDesign(enabled: Boolean) {
+        viewModelScope.launch { repository.setUseNewDesign(enabled) }
+    }
+
+    fun setThemeKey(key: String) {
+        viewModelScope.launch { repository.setThemeKey(key) }
+    }
+
     fun checkForUpdateNow() {
         viewModelScope.launch {
             val token = repository.settings.first().gitHubToken

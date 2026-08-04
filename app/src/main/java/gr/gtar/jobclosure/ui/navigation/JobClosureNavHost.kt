@@ -1,10 +1,15 @@
 package gr.gtar.jobclosure.ui.navigation
 
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -14,12 +19,18 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import gr.gtar.jobclosure.JobClosureApp
+import gr.gtar.jobclosure.data.AppSettings
 import gr.gtar.jobclosure.ui.bookingdetail.BookingDetailScreen
 import gr.gtar.jobclosure.ui.bookingdetail.BookingDetailViewModel
+import gr.gtar.jobclosure.ui.bookingdetail.NewBookingDetailScreen
 import gr.gtar.jobclosure.ui.bookingedit.BookingEditScreen
 import gr.gtar.jobclosure.ui.bookingedit.BookingEditViewModel
+import gr.gtar.jobclosure.ui.bookingedit.NewBookingEditScreen
 import gr.gtar.jobclosure.ui.bookinglist.BookingListScreen
 import gr.gtar.jobclosure.ui.bookinglist.BookingListViewModel
+import gr.gtar.jobclosure.ui.bookinglist.NewBookingListScreen
+import gr.gtar.jobclosure.ui.components.NewDesignEasing
+import gr.gtar.jobclosure.ui.settings.NewSettingsScreen
 import gr.gtar.jobclosure.ui.settings.SettingsScreen
 import gr.gtar.jobclosure.ui.settings.SettingsViewModel
 
@@ -30,17 +41,52 @@ private const val ROUTE_EDIT = "edit/{$ARG_BOOKING_ID}"
 private const val ROUTE_DETAIL = "detail/{$ARG_BOOKING_ID}"
 private const val NEW_BOOKING_ID = -1L
 
+/**
+ * Picks the classic or restyled ("new design") composable for each destination, based on the
+ * Settings > Νέα εμφάνιση switch (design_handoff_theme_switcher) - off by default, so nothing
+ * changes for anyone until they opt in, and switching back is just the same toggle again.
+ */
 @Composable
 fun JobClosureNavHost(app: JobClosureApp) {
     val navController = rememberNavController()
+    val settings by app.settingsRepository.settings.collectAsState(initial = AppSettings())
+    val useNewDesign = settings.useNewDesign
 
     NavHost(
         navController = navController,
         startDestination = ROUTE_LIST,
-        enterTransition = { slideInHorizontally(initialOffsetX = { it / 3 }) + fadeIn() },
-        exitTransition = { slideOutHorizontally(targetOffsetX = { -it / 5 }) + fadeOut() },
-        popEnterTransition = { slideInHorizontally(initialOffsetX = { -it / 5 }) + fadeIn() },
-        popExitTransition = { slideOutHorizontally(targetOffsetX = { it / 3 }) + fadeOut() },
+        enterTransition = {
+            if (useNewDesign) {
+                fadeIn(tween(400, easing = NewDesignEasing)) +
+                    slideInHorizontally(tween(400, easing = NewDesignEasing)) { it / 12 } +
+                    scaleIn(tween(400, easing = NewDesignEasing), initialScale = 0.99f)
+            } else {
+                slideInHorizontally(initialOffsetX = { it / 3 }) + fadeIn()
+            }
+        },
+        exitTransition = {
+            if (useNewDesign) {
+                fadeOut(tween(200))
+            } else {
+                slideOutHorizontally(targetOffsetX = { -it / 5 }) + fadeOut()
+            }
+        },
+        popEnterTransition = {
+            if (useNewDesign) {
+                fadeIn(tween(400, easing = NewDesignEasing)) +
+                    slideInHorizontally(tween(400, easing = NewDesignEasing)) { -it / 12 } +
+                    scaleIn(tween(400, easing = NewDesignEasing), initialScale = 0.99f)
+            } else {
+                slideInHorizontally(initialOffsetX = { -it / 5 }) + fadeIn()
+            }
+        },
+        popExitTransition = {
+            if (useNewDesign) {
+                fadeOut(tween(200)) + scaleOut(tween(200), targetScale = 0.99f)
+            } else {
+                slideOutHorizontally(targetOffsetX = { it / 3 }) + fadeOut()
+            }
+        },
     ) {
         composable(ROUTE_LIST) {
             val viewModel: BookingListViewModel = viewModel(
@@ -48,12 +94,21 @@ fun JobClosureNavHost(app: JobClosureApp) {
                     initializer { BookingListViewModel(app, app.bookingRepository, app.settingsRepository) }
                 },
             )
-            BookingListScreen(
-                viewModel = viewModel,
-                onAddBooking = { navController.navigate("edit/$NEW_BOOKING_ID") },
-                onOpenBooking = { id -> navController.navigate("detail/$id") },
-                onOpenSettings = { navController.navigate(ROUTE_SETTINGS) },
-            )
+            if (useNewDesign) {
+                NewBookingListScreen(
+                    viewModel = viewModel,
+                    onAddBooking = { navController.navigate("edit/$NEW_BOOKING_ID") },
+                    onOpenBooking = { id -> navController.navigate("detail/$id") },
+                    onOpenSettings = { navController.navigate(ROUTE_SETTINGS) },
+                )
+            } else {
+                BookingListScreen(
+                    viewModel = viewModel,
+                    onAddBooking = { navController.navigate("edit/$NEW_BOOKING_ID") },
+                    onOpenBooking = { id -> navController.navigate("detail/$id") },
+                    onOpenSettings = { navController.navigate(ROUTE_SETTINGS) },
+                )
+            }
         }
 
         composable(
@@ -75,11 +130,11 @@ fun JobClosureNavHost(app: JobClosureApp) {
                     }
                 },
             )
-            BookingEditScreen(
-                viewModel = viewModel,
-                isNew = isNew,
-                onDone = { navController.popBackStack() },
-            )
+            if (useNewDesign) {
+                NewBookingEditScreen(viewModel = viewModel, isNew = isNew, onDone = { navController.popBackStack() })
+            } else {
+                BookingEditScreen(viewModel = viewModel, isNew = isNew, onDone = { navController.popBackStack() })
+            }
         }
 
         composable(
@@ -102,11 +157,19 @@ fun JobClosureNavHost(app: JobClosureApp) {
                     }
                 },
             )
-            BookingDetailScreen(
-                viewModel = viewModel,
-                onBack = { navController.popBackStack() },
-                onEdit = { id -> navController.navigate("edit/$id") },
-            )
+            if (useNewDesign) {
+                NewBookingDetailScreen(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onEdit = { id -> navController.navigate("edit/$id") },
+                )
+            } else {
+                BookingDetailScreen(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onEdit = { id -> navController.navigate("edit/$id") },
+                )
+            }
         }
 
         composable(ROUTE_SETTINGS) {
@@ -117,7 +180,11 @@ fun JobClosureNavHost(app: JobClosureApp) {
                     }
                 },
             )
-            SettingsScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+            if (useNewDesign) {
+                NewSettingsScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+            } else {
+                SettingsScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+            }
         }
     }
 }

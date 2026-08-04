@@ -30,6 +30,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -140,6 +141,8 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             UpdateSection(viewModel)
+
+            NewDesignSection(viewModel)
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 AutocompleteAddressField(
@@ -307,6 +310,33 @@ fun SettingsScreen(
                     "που θέλεις όταν αποθηκεύεις μια δουλειά.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/** Turns on the restyled UI (colour themes + animations from design_handoff_theme_switcher) -
+ *  off by default so nothing changes until the user opts in; the new design's own Settings screen
+ *  has the same switch so it's just as easy to turn back off again. */
+@Composable
+private fun NewDesignSection(viewModel: SettingsViewModel) {
+    val settings by viewModel.settings.collectAsState()
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Νέα εμφάνιση", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Δοκίμασε το restyle με θέματα χρωμάτων και κινούμενα εφέ. Μπορείς να επιστρέψεις στην κλασική εμφάνιση όποτε θέλεις.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(
+                checked = settings.useNewDesign,
+                onCheckedChange = { viewModel.setUseNewDesign(it) },
             )
         }
     }

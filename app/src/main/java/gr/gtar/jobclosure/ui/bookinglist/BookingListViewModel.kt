@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import gr.gtar.jobclosure.calendar.CalendarHelper
+import gr.gtar.jobclosure.data.AppSettings
 import gr.gtar.jobclosure.data.Booking
 import gr.gtar.jobclosure.data.BookingRepository
 import gr.gtar.jobclosure.data.BookingType
@@ -47,6 +48,15 @@ class BookingListViewModel(
 
     fun dismissChangelog() {
         viewModelScope.launch { settingsRepository.markChangelogSeen(CURRENT_CHANGELOG_ID) }
+    }
+
+    /** Read here (rather than only in Settings) so the restyled list screen's theme picker can
+     *  apply a theme immediately without navigating away. */
+    val settings: StateFlow<AppSettings> =
+        settingsRepository.settings.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppSettings())
+
+    fun setThemeKey(key: String) {
+        viewModelScope.launch { settingsRepository.setThemeKey(key) }
     }
 
     val bookings: StateFlow<List<Booking>> =

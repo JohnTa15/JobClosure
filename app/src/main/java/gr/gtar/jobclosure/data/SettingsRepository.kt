@@ -1,6 +1,7 @@
 package gr.gtar.jobclosure.data
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
@@ -27,6 +28,10 @@ data class AppSettings(
     val dronePartnerEmail: String = "",
     val gitHubToken: String = "",
     val changelogLastSeenId: Int = 0,
+    // Restyle + theme switcher (design_handoff_theme_switcher): off by default so the app keeps
+    // its classic look until the user opts in from Settings; themeKey only matters once it's on.
+    val useNewDesign: Boolean = false,
+    val themeKey: String = "nocturne",
 )
 
 class SettingsRepository(private val context: Context) {
@@ -40,6 +45,8 @@ class SettingsRepository(private val context: Context) {
         val DRONE_PARTNER_EMAIL = stringPreferencesKey("drone_partner_email")
         val GITHUB_TOKEN = stringPreferencesKey("github_token")
         val CHANGELOG_LAST_SEEN_ID = intPreferencesKey("changelog_last_seen_id")
+        val USE_NEW_DESIGN = booleanPreferencesKey("use_new_design")
+        val THEME_KEY = stringPreferencesKey("theme_key")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
@@ -58,6 +65,8 @@ class SettingsRepository(private val context: Context) {
             dronePartnerEmail = prefs[Keys.DRONE_PARTNER_EMAIL] ?: "",
             gitHubToken = prefs[Keys.GITHUB_TOKEN] ?: "",
             changelogLastSeenId = prefs[Keys.CHANGELOG_LAST_SEEN_ID] ?: 0,
+            useNewDesign = prefs[Keys.USE_NEW_DESIGN] ?: false,
+            themeKey = prefs[Keys.THEME_KEY] ?: "nocturne",
         )
     }
 
@@ -91,5 +100,13 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun markChangelogSeen(id: Int) {
         context.dataStore.edit { it[Keys.CHANGELOG_LAST_SEEN_ID] = id }
+    }
+
+    suspend fun setUseNewDesign(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.USE_NEW_DESIGN] = enabled }
+    }
+
+    suspend fun setThemeKey(key: String) {
+        context.dataStore.edit { it[Keys.THEME_KEY] = key }
     }
 }
