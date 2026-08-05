@@ -78,7 +78,9 @@ jobs:
           name: jobclosure-windows-msi
           path: desktopApp/build/compose/binaries/main/msi/*.msi
 
+  # Temporarily disabled - macOS/iOS builds paused for now, revisit later.
   build-desktop-macos:
+    if: false
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -151,6 +153,7 @@ jobs:
   # Compile-only for now (no iOS app exists yet to package); not part of publish-release's needs,
   # since it produces no release artifact.
   build-ios-shared:
+    if: false
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -170,7 +173,7 @@ jobs:
   # Runs after every platform build has produced its artifact, and does the actual GitHub Release
   # publishing once - avoids the jobs racing to create/update the same "debug-latest" release.
   publish-release:
-    needs: [build-android, build-desktop-windows, build-desktop-macos, build-desktop-linux]
+    needs: [build-android, build-desktop-windows, build-desktop-linux]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -211,10 +214,8 @@ jobs:
 
             - Android: αρχείο .apk
             - Windows: αρχείο .msi
-            - macOS: αρχείο .dmg
             - Linux: αρχείο .deb
           files: |
             release-assets/jobclosure-android-apk/*.apk
             release-assets/jobclosure-windows-msi/*.msi
-            release-assets/jobclosure-macos-dmg/*.dmg
             release-assets/jobclosure-linux-deb/*.deb
