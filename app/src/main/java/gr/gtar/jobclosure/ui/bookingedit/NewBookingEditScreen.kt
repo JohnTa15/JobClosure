@@ -69,9 +69,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import gr.gtar.jobclosure.calendar.CalendarInfo
 import gr.gtar.jobclosure.data.BookingType
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberTimePickerState
 import gr.gtar.jobclosure.ui.components.AmbientBackground
 import gr.gtar.jobclosure.ui.components.AutocompleteAddressField
-import gr.gtar.jobclosure.ui.components.DateTimePickerField
 import gr.gtar.jobclosure.ui.components.GlowBox
 import gr.gtar.jobclosure.ui.components.NewIconButton
 import gr.gtar.jobclosure.ui.components.NewSectionLabel
@@ -81,7 +85,15 @@ import gr.gtar.jobclosure.ui.theme.AppTheme
 import gr.gtar.jobclosure.ui.theme.AppThemePalettes
 import gr.gtar.jobclosure.ui.theme.NewUiColors
 import gr.gtar.jobclosure.ui.theme.typeColors
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
+
+private val newDateTimeDisplayFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
 
 /** Restyled booking edit form - see design_handoff_theme_switcher/README.md "Screen 3". */
 @OptIn(ExperimentalLayoutApi::class)
@@ -165,10 +177,11 @@ fun NewBookingEditScreen(
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    DateTimePickerField(
+                    NewDateTimePickerField(
                         label = "Ώρα μυστηρίου",
                         dateTime = state.ceremonyStart,
                         onDateTimeChange = { dt -> viewModel.update { it.copy(ceremonyStart = dt) } },
+                        accent = palette.accent,
                         modifier = Modifier.weight(1f),
                     )
                     NewTextField(
@@ -220,10 +233,11 @@ fun NewBookingEditScreen(
                         googleApiKey = state.mapsApiKey,
                         placeSearchRepository = viewModel.placeSearchRepository,
                     )
-                    DateTimePickerField(
+                    NewDateTimePickerField(
                         label = "Ώρα δεξίωσης",
                         dateTime = state.receptionStart,
                         onDateTimeChange = { dt -> viewModel.update { it.copy(receptionStart = dt) } },
+                        accent = palette.accent,
                     )
                     NewTextField(
                         label = "Διάρκεια δεξίωσης (λεπτά)",
@@ -528,6 +542,100 @@ private fun NewTextField(
                     }
                     Box(modifier = Modifier.weight(1f)) { innerTextField() }
                 }
+            },
+        )
+    }
+}
+
+/** Same visual language as [NewTextField] (label above, dark rounded box) instead of the shared
+ *  [gr.gtar.jobclosure.ui.components.DateTimePickerField]'s plain Material3 OutlinedTextField look,
+ *  which clashed with the rest of this screen. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun NewDateTimePickerField(
+    label: String,
+    dateTime: LocalDateTime?,
+    onDateTimeChange: (LocalDateTime) -> Unit,
+    accent: Color,
+    modifier: Modifier = Modifier,
+) {
+    var showDatePicker by remember { mutableStateOf(false) }
+    var showTimePicker by remember { mutableStateOf(false) }
+    var pendingDate by remember { mutableStateOf<LocalDate?>(null) }
+
+    Column(modifier = modifier) {
+        NewSectionLabel(text = label, modifier = Modifier.padding(bottom = 7.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color(0x80232532))
+                .border(1.dp, NewUiColors.outline, RoundedCornerShape(12.dp))
+                .clickable { showDatePicker = true }
+                .padding(14.dp),
+        ) {
+            Icon(Icons.Filled.Schedule, contentDescription = null, tint = accent, modifier = Modifier.padding(end = 10.dp))
+            Text(
+                dateTime?.format(newDateTimeDisplayFormatter) ?: "",
+                color = NewUiColors.onGround,
+                fontSize = 15.sp,
+                modifier = Modifier.weight(1f),
+            )
+            Text("Επιλογή", color = accent, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        }
+    }
+
+    if (showDatePicker) {
+        val initialMillis = (dateTime ?: LocalDateTime.now())
+            .atZone(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
+        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    val millis = datePickerState.selectedDateMillis
+                    if (millis != null) {
+                        pendingDate = Instant.ofEpochMilli(millis).atZone(ZoneId.of("UTC")).toLocalDate()
+                        showDatePicker = false
+                        showTimePicker = true
+                    } else {
+                        showDatePicker = false
+                    }
+                }) { Text("Επόμενο") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("Άκυρο") }
+            },
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
+    if (showTimePicker) {
+        val initialTime = dateTime?.toLocalTime() ?: LocalTime.of(12, 0)
+        val timePickerState = rememberTimePickerState(
+            initialHour = initialTime.hour,
+            initialMinute = initialTime.minute,
+            is24Hour = true,
+        )
+        AlertDialog(
+            onDismissRequest = { showTimePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    val date = pendingDate ?: dateTime?.toLocalDate() ?: LocalDate.now()
+                    onDateTimeChange(LocalDateTime.of(date, LocalTime.of(timePickerState.hour, timePickerState.minute)))
+                    showTimePicker = false
+                }) { Text("Εντάξει") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTimePicker = false }) { Text("Άκυρο") }
+            },
+            text = {
+                TimePicker(state = timePickerState, modifier = Modifier.padding(8.dp))
             },
         )
     }
