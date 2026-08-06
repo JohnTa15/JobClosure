@@ -41,7 +41,7 @@ import kotlin.math.floor
 import kotlin.math.ln
 import kotlin.math.tan
 
-private const val ZOOM = 16
+private const val ZOOM = 14
 private const val TILE_PX = 256
 private val DISPLAY_SIZE = 200.dp
 

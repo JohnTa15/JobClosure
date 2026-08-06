@@ -366,7 +366,7 @@ private fun NewLocationPanel(
                 contentColor = onAccentContainer,
                 glowColor = accentBorder.copy(alpha = 0.0f),
                 glowRadius = 0.dp,
-                height = 42.dp,
+                height = 36.dp,
                 fontSize = 13.sp,
                 modifier = Modifier.padding(top = 14.dp),
             )
@@ -491,7 +491,7 @@ private fun NewWeatherPanel(
                         contentColor = NewUiColors.success,
                         glowColor = NewUiColors.droneChip.copy(alpha = 0.35f),
                         glowRadius = 26.dp,
-                        height = 44.dp,
+                        height = 36.dp,
                         fontSize = 13.sp,
                         modifier = Modifier.padding(top = 12.dp),
                     )
