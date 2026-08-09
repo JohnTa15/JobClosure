@@ -8,7 +8,7 @@ import retrofit2.http.POST
 
 /**
  * Places API (New) - `places.googleapis.com`, POST + JSON bodies with the key in an `X-Goog-Api-Key`
- * header, rather than the legacy `maps.googleapis.com/maps/api/place/*` GET endpoints.
+ * header, rather than the legacy GET endpoints under `maps.googleapis.com/maps/api/place`.
  *
  * The legacy API is what this used to call, but Google no longer enables it on new Cloud projects:
  * a project that only has "Places API (New)" switched on answers every legacy call with
