@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -81,6 +82,7 @@ import gr.gtar.jobclosure.ui.theme.NewUiColors
 import gr.gtar.jobclosure.update.ApkUpdateManager
 import gr.gtar.jobclosure.update.DownloadResult
 import gr.gtar.jobclosure.update.UpdateCheckResult
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -98,6 +100,7 @@ fun NewSettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
     var isLocating by remember { mutableStateOf(false) }
     var locationError by remember { mutableStateOf<String?>(null) }
     var showChangelogHistory by remember { mutableStateOf(false) }
+    var justSaved by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -113,7 +116,6 @@ fun NewSettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                 val suggestion = viewModel.placeSearchRepository.reverseGeocode(location.latitude, location.longitude)
                 if (suggestion != null) {
                     homeAddress = suggestion.fullText
-                    viewModel.setHomeAddress(suggestion.fullText)
                 } else {
                     locationError = "Δεν βρέθηκε διεύθυνση για αυτή την τοποθεσία"
                 }
@@ -183,10 +185,7 @@ fun NewSettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         AutocompleteAddressField(
                             value = homeAddress,
-                            onValueChange = {
-                                homeAddress = it
-                                viewModel.setHomeAddress(it)
-                            },
+                            onValueChange = { homeAddress = it },
                             label = "Διεύθυνση σπιτιού",
                             provider = mapsProvider,
                             googleApiKey = mapsApiKey,
@@ -260,10 +259,7 @@ fun NewSettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                         SettingsField(
                             label = "Κλειδί Google Maps API",
                             value = mapsApiKey,
-                            onValueChange = {
-                                mapsApiKey = it
-                                viewModel.setMapsApiKey(it)
-                            },
+                            onValueChange = { mapsApiKey = it },
                             accent = palette.accent,
                             modifier = Modifier.padding(top = 10.dp),
                         )
@@ -274,10 +270,7 @@ fun NewSettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                     SettingsField(
                         label = "Υπενθύμιση πριν (λεπτά)",
                         value = reminderMinutes,
-                        onValueChange = { value ->
-                            reminderMinutes = value
-                            value.toIntOrNull()?.let { viewModel.setReminderMinutesBefore(it) }
-                        },
+                        onValueChange = { value -> reminderMinutes = value },
                         leadingIcon = Icons.Filled.NotificationsActive,
                         iconTint = NewUiColors.unconfirmedMarker,
                         keyboardType = KeyboardType.Number,
@@ -287,10 +280,7 @@ fun NewSettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                     SettingsField(
                         label = "Συνεργάτης drone",
                         value = dronePartnerEmail,
-                        onValueChange = {
-                            dronePartnerEmail = it
-                            viewModel.setDronePartnerEmail(it)
-                        },
+                        onValueChange = { dronePartnerEmail = it },
                         leadingIcon = Icons.Filled.Person,
                         iconTint = NewUiColors.droneChip,
                         keyboardType = KeyboardType.Email,
@@ -304,14 +294,11 @@ fun NewSettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                     SettingsField(
                         label = "GitHub token",
                         value = gitHubToken,
-                        onValueChange = {
-                            gitHubToken = it
-                            viewModel.setGitHubToken(it)
-                        },
+                        onValueChange = { gitHubToken = it },
                         leadingIcon = Icons.Filled.Key,
                         accent = palette.accent,
                     )
-                    if (gitHubToken.isNotBlank()) {
+                    if (settings.gitHubToken.isNotBlank()) {
                         val (message, color) = when (updateStatusForToken) {
                             is UpdateCheckResult.UpdateAvailable, UpdateCheckResult.UpToDate ->
                                 "Αποθηκευμένο και επιβεβαιωμένο." to NewUiColors.success
@@ -328,7 +315,40 @@ fun NewSettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                         }
                     }
                 }
+
+                Column {
+                    AccentButton(
+                        text = if (justSaved) "Αποθηκεύτηκε" else "Αποθήκευση & εφαρμογή",
+                        onClick = {
+                            viewModel.setHomeAddress(homeAddress)
+                            viewModel.setMapsApiKey(mapsApiKey)
+                            reminderMinutes.toIntOrNull()?.let { viewModel.setReminderMinutesBefore(it) }
+                            viewModel.setDronePartnerEmail(dronePartnerEmail)
+                            viewModel.setGitHubToken(gitHubToken)
+                            justSaved = true
+                        },
+                        icon = if (justSaved) Icons.Filled.CheckCircle else Icons.Filled.Save,
+                        borderColor = palette.accentBorder,
+                        containerColor = palette.accentContainer,
+                        contentColor = palette.onAccentContainer,
+                        glowColor = palette.accentGlow,
+                        height = 46.dp,
+                    )
+                    Text(
+                        "Αποθηκεύει τη διεύθυνση σπιτιού, το κλειδί Google Maps, την υπενθύμιση, τον συνεργάτη drone και το GitHub token.",
+                        color = NewUiColors.onGroundFaint,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
             }
+        }
+    }
+
+    LaunchedEffect(justSaved) {
+        if (justSaved) {
+            delay(2000)
+            justSaved = false
         }
     }
 
