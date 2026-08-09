@@ -43,7 +43,10 @@ data class PlacePrediction(
 @JsonClass(generateAdapter = true)
 data class PlaceFindResponse(
     val candidates: List<PlaceCandidate> = emptyList(),
+    /** "OK" / "ZERO_RESULTS" on success, otherwise the reason the call was rejected -
+     *  "REQUEST_DENIED" when the key can't use this API, "OVER_QUERY_LIMIT", ... */
     val status: String = "",
+    @Json(name = "error_message") val errorMessage: String? = null,
 )
 
 @JsonClass(generateAdapter = true)

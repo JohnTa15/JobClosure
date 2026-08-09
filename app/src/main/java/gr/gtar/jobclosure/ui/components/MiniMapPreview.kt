@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import gr.gtar.jobclosure.data.MapsProvider
 import kotlinx.coroutines.Dispatchers
@@ -54,6 +55,11 @@ private data class TileLocation(val tileX: Int, val tileY: Int, val pixelX: Doub
  *  has the marker baked into the returned image, so it carries no tile location. */
 private data class MapImage(val bitmap: ImageBitmap, val tile: TileLocation?)
 
+private sealed interface MapResult {
+    data class Success(val image: MapImage) : MapResult
+    data class Failure(val message: String) : MapResult
+}
+
 /**
  * Small, non-interactive map preview centered on [latitude]/[longitude]. Follows whichever provider
  * is configured in Settings: a Google Static Maps image when Google is selected and a key is
@@ -72,15 +78,17 @@ fun MiniMapPreview(
 ) {
     val useGoogle = provider == MapsProvider.GOOGLE && googleApiKey.isNotBlank()
     var loaded by remember(latitude, longitude, useGoogle) { mutableStateOf<MapImage?>(null) }
-    var failed by remember(latitude, longitude, useGoogle) { mutableStateOf(false) }
+    var error by remember(latitude, longitude, useGoogle) { mutableStateOf<String?>(null) }
 
     LaunchedEffect(latitude, longitude, useGoogle, googleApiKey) {
         loaded = null
-        failed = false
-        val result = withContext(Dispatchers.IO) {
+        error = null
+        when (val result = withContext(Dispatchers.IO) {
             if (useGoogle) loadGoogleStaticMap(latitude, longitude, googleApiKey) else loadTile(latitude, longitude)
+        }) {
+            is MapResult.Success -> loaded = result.image
+            is MapResult.Failure -> error = result.message
         }
-        if (result == null) failed = true else loaded = result
     }
 
     Column(modifier = modifier) {
@@ -111,8 +119,15 @@ fun MiniMapPreview(
                         )
                     }
                 }
-                failed -> Box(Modifier.fillMaxWidth().height(DISPLAY_SIZE), contentAlignment = Alignment.Center) {
-                    Text("Ο χάρτης δεν φορτώθηκε", style = MaterialTheme.typography.bodySmall)
+                error != null -> Box(
+                    Modifier.fillMaxWidth().height(DISPLAY_SIZE).padding(12.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "Ο χάρτης δεν φορτώθηκε.\n$error",
+                        style = MaterialTheme.typography.bodySmall,
+                        textAlign = TextAlign.Center,
+                    )
                 }
                 else -> Box(Modifier.fillMaxWidth().height(DISPLAY_SIZE), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
@@ -128,7 +143,13 @@ fun MiniMapPreview(
     }
 }
 
-private fun loadGoogleStaticMap(latitude: Double, longitude: Double, apiKey: String): MapImage? {
+/**
+ * A failed Static Maps call answers with a plain-text explanation ("This API project is not
+ * authorized to use this API", "The provided API key is expired", ...) rather than an image, so the
+ * body is passed straight through to the UI - guessing at which of the several Maps Platform APIs
+ * still needs enabling is exactly the thing that message already answers.
+ */
+private fun loadGoogleStaticMap(latitude: Double, longitude: Double, apiKey: String): MapResult {
     val center = "$latitude,$longitude"
     val url = STATIC_MAP_URL.toHttpUrl().newBuilder()
         .addQueryParameter("center", center)
@@ -140,13 +161,21 @@ private fun loadGoogleStaticMap(latitude: Double, longitude: Double, apiKey: Str
         .build()
     return try {
         OkHttpClient().newCall(Request.Builder().url(url).build()).execute().use { response ->
-            if (!response.isSuccessful) return null
-            val bytes = response.body?.bytes() ?: return null
-            val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
-            MapImage(bitmap.asImageBitmap(), tile = null)
+            val bytes = response.body?.bytes()
+            if (!response.isSuccessful) {
+                val explanation = bytes?.toString(Charsets.UTF_8)?.trim()?.takeIf { it.isNotBlank() }
+                return MapResult.Failure(explanation ?: "Google Static Maps: HTTP ${response.code}")
+            }
+            if (bytes == null) return MapResult.Failure("Κενή απάντηση από το Google Static Maps.")
+            val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                ?: return MapResult.Failure(
+                    bytes.toString(Charsets.UTF_8).trim().takeIf { it.isNotBlank() }
+                        ?: "Η απάντηση του Google Static Maps δεν ήταν εικόνα.",
+                )
+            MapResult.Success(MapImage(bitmap.asImageBitmap(), tile = null))
         }
     } catch (e: Exception) {
-        null
+        MapResult.Failure(e.message ?: "Αποτυχία σύνδεσης στο Google Static Maps.")
     }
 }
 
@@ -165,7 +194,7 @@ private fun locateTile(latitude: Double, longitude: Double, zoom: Int): TileLoca
     )
 }
 
-private fun loadTile(latitude: Double, longitude: Double): MapImage? {
+private fun loadTile(latitude: Double, longitude: Double): MapResult {
     val tile = locateTile(latitude, longitude, ZOOM)
     val url = "https://tile.openstreetmap.org/$ZOOM/${tile.tileX}/${tile.tileY}.png"
     return try {
@@ -174,12 +203,13 @@ private fun loadTile(latitude: Double, longitude: Double): MapImage? {
             .header("User-Agent", "JobClosure-Android-App (single-user booking tracker, no contact address)")
             .build()
         OkHttpClient().newCall(request).execute().use { response ->
-            if (!response.isSuccessful) return null
-            val bytes = response.body?.bytes() ?: return null
-            val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
-            MapImage(bitmap.asImageBitmap(), tile)
+            if (!response.isSuccessful) return MapResult.Failure("OpenStreetMap: HTTP ${response.code}")
+            val bytes = response.body?.bytes() ?: return MapResult.Failure("Κενή απάντηση από τον OpenStreetMap.")
+            val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                ?: return MapResult.Failure("Το tile του OpenStreetMap δεν διαβάστηκε.")
+            MapResult.Success(MapImage(bitmap.asImageBitmap(), tile))
         }
     } catch (e: Exception) {
-        null
+        MapResult.Failure(e.message ?: "Αποτυχία σύνδεσης στον OpenStreetMap.")
     }
 }

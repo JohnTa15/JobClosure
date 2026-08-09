@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -22,7 +23,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import gr.gtar.jobclosure.data.MapsProvider
 import gr.gtar.jobclosure.network.NetworkModule
 import gr.gtar.jobclosure.ui.theme.NewUiColors
@@ -43,7 +46,13 @@ private const val USER_AGENT = "JobClosure-Android-App (single-user booking trac
 private sealed interface VenuePhotoState {
     data object Loading : VenuePhotoState
     data class Loaded(val bitmap: ImageBitmap) : VenuePhotoState
+
+    /** The lookup worked, this place simply has no photo - stay silent. */
     data object NotFound : VenuePhotoState
+
+    /** The lookup itself was rejected (API not enabled for the key, quota, ...). Worth showing,
+     *  since it's fixable and otherwise indistinguishable from "no photo exists". */
+    data class Failed(val message: String) : VenuePhotoState
 }
 
 /**
@@ -73,14 +82,13 @@ fun VenuePhotoPreview(
 
     LaunchedEffect(query, useGoogle, googleApiKey, coordinates) {
         state = VenuePhotoState.Loading
-        val bitmap = withContext(Dispatchers.IO) {
+        state = withContext(Dispatchers.IO) {
             if (useGoogle) {
                 loadGooglePlacePhoto(query, googleApiKey)
             } else {
-                coordinates?.let { (lat, lon) -> loadWikipediaPhoto(lat, lon) }
+                coordinates?.let { (lat, lon) -> loadWikipediaPhoto(lat, lon) } ?: VenuePhotoState.NotFound
             }
         }
-        state = if (bitmap != null) VenuePhotoState.Loaded(bitmap) else VenuePhotoState.NotFound
     }
 
     val current = state
@@ -102,6 +110,17 @@ fun VenuePhotoPreview(
                     modifier = Modifier.fillMaxWidth().height(DISPLAY_HEIGHT),
                     contentScale = ContentScale.Crop,
                 )
+                is VenuePhotoState.Failed -> Box(
+                    Modifier.fillMaxWidth().height(DISPLAY_HEIGHT).padding(10.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        current.message,
+                        color = NewUiColors.onGroundFaint,
+                        fontSize = 10.sp,
+                        textAlign = TextAlign.Center,
+                    )
+                }
                 else -> Box(Modifier.fillMaxWidth().height(DISPLAY_HEIGHT), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(modifier = Modifier.padding(4.dp))
                 }
@@ -110,13 +129,28 @@ fun VenuePhotoPreview(
     }
 }
 
-private suspend fun loadGooglePlacePhoto(query: String, apiKey: String): ImageBitmap? {
-    val photoReference = try {
+/**
+ * Places answers with a `status` that separates "this venue has no photo" (OK/ZERO_RESULTS) from
+ * "this key can't call this API" (REQUEST_DENIED and friends, with a human-readable
+ * `error_message`). Only the latter is surfaced - note that Google now issues Places API (New)
+ * keys, on which this legacy Find Place endpoint is denied unless the older "Places API" is also
+ * enabled for the project.
+ */
+private suspend fun loadGooglePlacePhoto(query: String, apiKey: String): VenuePhotoState {
+    val response = try {
         NetworkModule.placesApi.findPlace(input = query, apiKey = apiKey)
-            .candidates.firstOrNull()?.photos?.firstOrNull()?.photoReference
     } catch (e: Exception) {
-        null
-    } ?: return null
+        return VenuePhotoState.Failed(e.message ?: "Αποτυχία σύνδεσης στο Google Places.")
+    }
+
+    if (response.status !in setOf("OK", "ZERO_RESULTS")) {
+        return VenuePhotoState.Failed(
+            listOfNotNull("Google Places: ${response.status}", response.errorMessage).joinToString(" - "),
+        )
+    }
+
+    val photoReference = response.candidates.firstOrNull()?.photos?.firstOrNull()?.photoReference
+        ?: return VenuePhotoState.NotFound
 
     val url = GOOGLE_PHOTO_URL.toHttpUrl().newBuilder()
         .addQueryParameter("maxwidth", PHOTO_MAX_WIDTH.toString())
@@ -127,8 +161,9 @@ private suspend fun loadGooglePlacePhoto(query: String, apiKey: String): ImageBi
 }
 
 /** Wikipedia's geosearch generator returns articles near a point; `pageimages` then gives each
- *  one's lead thumbnail. Takes the first article that actually has an image. */
-private fun loadWikipediaPhoto(latitude: Double, longitude: Double): ImageBitmap? {
+ *  one's lead thumbnail. Takes the first article that actually has an image. Nothing nearby is the
+ *  norm for small private venues, so any miss here is [VenuePhotoState.NotFound], not an error. */
+private fun loadWikipediaPhoto(latitude: Double, longitude: Double): VenuePhotoState {
     val url = WIKIPEDIA_API_URL.toHttpUrl().newBuilder()
         .addQueryParameter("action", "query")
         .addQueryParameter("format", "json")
@@ -145,9 +180,10 @@ private fun loadWikipediaPhoto(latitude: Double, longitude: Double): ImageBitmap
     val thumbnailUrl = try {
         val request = Request.Builder().url(url).header("User-Agent", USER_AGENT).build()
         OkHttpClient().newCall(request).execute().use { response ->
-            if (!response.isSuccessful) return null
-            val body = response.body?.string() ?: return null
-            val pages = JSONObject(body).optJSONObject("query")?.optJSONArray("pages") ?: return null
+            if (!response.isSuccessful) return VenuePhotoState.NotFound
+            val body = response.body?.string() ?: return VenuePhotoState.NotFound
+            val pages = JSONObject(body).optJSONObject("query")?.optJSONArray("pages")
+                ?: return VenuePhotoState.NotFound
             (0 until pages.length())
                 .asSequence()
                 .mapNotNull { index -> pages.optJSONObject(index)?.optJSONObject("thumbnail")?.optString("source") }
@@ -155,21 +191,25 @@ private fun loadWikipediaPhoto(latitude: Double, longitude: Double): ImageBitmap
         }
     } catch (e: Exception) {
         null
-    } ?: return null
+    } ?: return VenuePhotoState.NotFound
 
     return downloadBitmap(Request.Builder().url(thumbnailUrl).header("User-Agent", USER_AGENT).build())
 }
 
-private fun downloadBitmap(request: Request): ImageBitmap? = try {
+private fun downloadBitmap(request: Request): VenuePhotoState = try {
     OkHttpClient().newCall(request).execute().use { response ->
-        if (!response.isSuccessful) {
-            null
-        } else {
-            response.body?.bytes()?.let { bytes ->
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
-            }
+        val bytes = response.body?.bytes()
+        when {
+            !response.isSuccessful -> VenuePhotoState.Failed(
+                bytes?.toString(Charsets.UTF_8)?.trim()?.takeIf { it.isNotBlank() }
+                    ?: "Η λήψη της φωτογραφίας απέτυχε (HTTP ${response.code}).",
+            )
+            bytes == null -> VenuePhotoState.NotFound
+            else -> BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                ?.let { VenuePhotoState.Loaded(it.asImageBitmap()) }
+                ?: VenuePhotoState.NotFound
         }
     }
 } catch (e: Exception) {
-    null
+    VenuePhotoState.Failed(e.message ?: "Αποτυχία λήψης φωτογραφίας.")
 }
