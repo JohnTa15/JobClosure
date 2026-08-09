@@ -50,7 +50,7 @@ private sealed interface VenuePhotoState {
     data object Loading : VenuePhotoState
     data class Loaded(val bitmap: ImageBitmap) : VenuePhotoState
 
-    /** The lookup worked, this place simply has no photo - stay silent. */
+    /** Every source was asked and none had a photo of this place. */
     data object NotFound : VenuePhotoState
 
     /** The lookup itself was rejected (API not enabled for the key, quota, ...). Worth showing,
@@ -59,14 +59,15 @@ private sealed interface VenuePhotoState {
 }
 
 /**
- * A photo of a church/venue, sourced to match the configured maps provider: Google Places
- * (Find Place From Text -> photo_reference -> Place Photo) when Google is selected, otherwise a
- * nearby Wikipedia article's lead image found by [coordinates] - the closest free equivalent, since
- * OSM/Nominatim itself serves no photography. Fetched with plain OkHttp and decoded to a Bitmap,
- * the same lightweight approach as [MiniMapPreview] rather than pulling in an image-loading library.
+ * A photo of a church/venue. With Google selected it asks Places (New) Text Search first, and falls
+ * back to the lead image of a Wikipedia article near [coordinates] when Places has nothing - plenty
+ * of churches are documented there but absent from Places' photography, and the fallback costs
+ * nothing. On the OpenStreetMap provider only the Wikipedia source exists, since OSM/Nominatim serve
+ * no photography at all. Fetched with plain OkHttp and decoded to a Bitmap, the same lightweight
+ * approach as [MiniMapPreview] rather than pulling in an image-loading library.
  *
- * Renders nothing at all when no photo is found (very common for small private venues on the
- * Wikipedia path) rather than showing an empty or broken placeholder.
+ * The box is always drawn once there's something to look up, saying so when no photo was found -
+ * silently rendering nothing made a photo-less venue look identical to a broken feature.
  */
 @Composable
 fun VenuePhotoPreview(
@@ -78,24 +79,26 @@ fun VenuePhotoPreview(
     modifier: Modifier = Modifier,
 ) {
     val useGoogle = provider == MapsProvider.GOOGLE && googleApiKey.isNotBlank()
-    if (useGoogle && query.isBlank()) return
-    if (!useGoogle && coordinates == null) return
+    val canAskGoogle = useGoogle && query.isNotBlank()
+    if (!canAskGoogle && coordinates == null) return
 
     var state by remember(query, useGoogle, coordinates) { mutableStateOf<VenuePhotoState>(VenuePhotoState.Loading) }
 
     LaunchedEffect(query, useGoogle, googleApiKey, coordinates) {
         state = VenuePhotoState.Loading
         state = withContext(Dispatchers.IO) {
-            if (useGoogle) {
-                loadGooglePlacePhoto(query, googleApiKey)
-            } else {
-                coordinates?.let { (lat, lon) -> loadWikipediaPhoto(lat, lon) } ?: VenuePhotoState.NotFound
+            val fromGoogle = if (canAskGoogle) loadGooglePlacePhoto(query, googleApiKey) else null
+            when {
+                fromGoogle is VenuePhotoState.Loaded -> fromGoogle
+                // A rejected call is the user's to fix, so it wins over any fallback result.
+                fromGoogle is VenuePhotoState.Failed -> fromGoogle
+                coordinates != null -> loadWikipediaPhoto(coordinates.first, coordinates.second)
+                else -> VenuePhotoState.NotFound
             }
         }
     }
 
     val current = state
-    if (current is VenuePhotoState.NotFound) return
 
     Column(modifier = modifier) {
         NewSectionLabel(text = label, modifier = Modifier.padding(bottom = 7.dp))
@@ -121,6 +124,17 @@ fun VenuePhotoPreview(
                         current.message,
                         color = NewUiColors.onGroundFaint,
                         fontSize = 10.sp,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+                is VenuePhotoState.NotFound -> Box(
+                    Modifier.fillMaxWidth().height(DISPLAY_HEIGHT).padding(10.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "Δεν βρέθηκε φωτογραφία για αυτό το μέρος.",
+                        color = NewUiColors.onGroundFaint,
+                        fontSize = 11.sp,
                         textAlign = TextAlign.Center,
                     )
                 }
