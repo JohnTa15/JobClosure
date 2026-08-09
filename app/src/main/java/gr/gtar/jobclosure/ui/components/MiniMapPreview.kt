@@ -165,7 +165,7 @@ private fun locateTile(latitude: Double, longitude: Double, zoom: Int): TileLoca
     )
 }
 
-private fun loadTile(latitude: Double, longitude: Double): Pair<ImageBitmap, TileLocation>? {
+private fun loadTile(latitude: Double, longitude: Double): MapImage? {
     val tile = locateTile(latitude, longitude, ZOOM)
     val url = "https://tile.openstreetmap.org/$ZOOM/${tile.tileX}/${tile.tileY}.png"
     return try {
@@ -177,7 +177,7 @@ private fun loadTile(latitude: Double, longitude: Double): Pair<ImageBitmap, Til
             if (!response.isSuccessful) return null
             val bytes = response.body?.bytes() ?: return null
             val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
-            bitmap.asImageBitmap() to tile
+            MapImage(bitmap.asImageBitmap(), tile)
         }
     } catch (e: Exception) {
         null
