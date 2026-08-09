@@ -62,9 +62,12 @@ class PlaceSearchRepository(
             .map { toOsmSuggestion(it) }
 
     private suspend fun suggestGoogle(query: String, apiKey: String): List<PlaceSuggestion> =
-        placesApi.autocomplete(input = query, apiKey = apiKey).predictions
+        placesApi.autocomplete(apiKey = apiKey, request = PlacesAutocompleteRequest(input = query))
+            .suggestions
+            .mapNotNull { it.placePrediction?.text?.text }
+            .filter { it.isNotBlank() }
             .take(MAX_SUGGESTIONS)
-            .map { toSuggestion(it.description) }
+            .map { toSuggestion(it) }
 
     private fun toSuggestion(fullText: String) =
         PlaceSuggestion(name = fullText.substringBefore(",").trim(), fullText = fullText)

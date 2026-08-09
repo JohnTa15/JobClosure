@@ -43,6 +43,14 @@ object NetworkModule {
             .build()
     }
 
+    private val placesRetrofit: Retrofit by lazy {
+        Retrofit.Builder()
+            .baseUrl(PlacesApi.BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+    }
+
     private val nominatimRetrofit: Retrofit by lazy {
         Retrofit.Builder()
             .baseUrl(NominatimApi.BASE_URL)
@@ -61,7 +69,7 @@ object NetworkModule {
 
     val directionsApi: DirectionsApi by lazy { googleMapsRetrofit.create(DirectionsApi::class.java) }
     val geocodingApi: GeocodingApi by lazy { googleMapsRetrofit.create(GeocodingApi::class.java) }
-    val placesApi: PlacesApi by lazy { googleMapsRetrofit.create(PlacesApi::class.java) }
+    val placesApi: PlacesApi by lazy { placesRetrofit.create(PlacesApi::class.java) }
     val openMeteoApi: OpenMeteoApi by lazy { openMeteoRetrofit.create(OpenMeteoApi::class.java) }
     val gitHubReleaseApi: GitHubReleaseApi by lazy { gitHubRetrofit.create(GitHubReleaseApi::class.java) }
     val nominatimApi: NominatimApi by lazy { nominatimRetrofit.create(NominatimApi::class.java) }

@@ -28,6 +28,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import gr.gtar.jobclosure.data.MapsProvider
 import gr.gtar.jobclosure.network.NetworkModule
+import gr.gtar.jobclosure.network.PlacesApi
+import gr.gtar.jobclosure.network.PlacesTextSearchRequest
 import gr.gtar.jobclosure.ui.theme.NewUiColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -35,10 +37,11 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
+import retrofit2.HttpException
 
 private const val PHOTO_MAX_WIDTH = 400
 private val DISPLAY_HEIGHT = 120.dp
-private const val GOOGLE_PHOTO_URL = "https://maps.googleapis.com/maps/api/place/photo"
+private const val GOOGLE_PHOTO_URL = "https://places.googleapis.com/v1/"
 private const val WIKIPEDIA_API_URL = "https://el.wikipedia.org/w/api.php"
 private const val WIKIPEDIA_SEARCH_RADIUS_METRES = 700
 private const val USER_AGENT = "JobClosure-Android-App (single-user booking tracker, no contact address)"
@@ -130,31 +133,31 @@ fun VenuePhotoPreview(
 }
 
 /**
- * Places answers with a `status` that separates "this venue has no photo" (OK/ZERO_RESULTS) from
- * "this key can't call this API" (REQUEST_DENIED and friends, with a human-readable
- * `error_message`). Only the latter is surfaced - note that Google now issues Places API (New)
- * keys, on which this legacy Find Place endpoint is denied unless the older "Places API" is also
- * enabled for the project.
+ * Text Search on Places API (New) for the venue, then its first photo through the media endpoint.
+ * A search that simply matches nothing (or a venue with no photography) is [VenuePhotoState.NotFound];
+ * a rejected call carries Google's own error body, since that's what says which API or billing
+ * setting the key is missing.
  */
 private suspend fun loadGooglePlacePhoto(query: String, apiKey: String): VenuePhotoState {
     val response = try {
-        NetworkModule.placesApi.findPlace(input = query, apiKey = apiKey)
+        NetworkModule.placesApi.searchText(
+            apiKey = apiKey,
+            fieldMask = PlacesApi.PHOTO_FIELD_MASK,
+            request = PlacesTextSearchRequest(textQuery = query),
+        )
+    } catch (e: HttpException) {
+        val body = e.response()?.errorBody()?.string()?.trim()?.takeIf { it.isNotBlank() }
+        return VenuePhotoState.Failed(body ?: "Google Places: HTTP ${e.code()}")
     } catch (e: Exception) {
         return VenuePhotoState.Failed(e.message ?: "Αποτυχία σύνδεσης στο Google Places.")
     }
 
-    if (response.status !in setOf("OK", "ZERO_RESULTS")) {
-        return VenuePhotoState.Failed(
-            listOfNotNull("Google Places: ${response.status}", response.errorMessage).joinToString(" - "),
-        )
-    }
-
-    val photoReference = response.candidates.firstOrNull()?.photos?.firstOrNull()?.photoReference
+    val photoName = response.places.firstOrNull()?.photos?.firstOrNull()?.name
+        ?.takeIf { it.isNotBlank() }
         ?: return VenuePhotoState.NotFound
 
-    val url = GOOGLE_PHOTO_URL.toHttpUrl().newBuilder()
-        .addQueryParameter("maxwidth", PHOTO_MAX_WIDTH.toString())
-        .addQueryParameter("photoreference", photoReference)
+    val url = "$GOOGLE_PHOTO_URL$photoName/media".toHttpUrl().newBuilder()
+        .addQueryParameter("maxWidthPx", PHOTO_MAX_WIDTH.toString())
         .addQueryParameter("key", apiKey)
         .build()
     return downloadBitmap(Request.Builder().url(url).build())

@@ -2,59 +2,89 @@ package gr.gtar.jobclosure.network
 
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
-import retrofit2.http.GET
-import retrofit2.http.Query
+import retrofit2.http.Body
+import retrofit2.http.Header
+import retrofit2.http.POST
 
-/** Google Places Autocomplete/Find Place - used only when the Google Maps provider is selected
- *  (same API key as Directions/Geocoding, but needs "Places API" enabled too). */
+/**
+ * Places API (New) - `places.googleapis.com`, POST + JSON bodies with the key in an `X-Goog-Api-Key`
+ * header, rather than the legacy `maps.googleapis.com/maps/api/place/*` GET endpoints.
+ *
+ * The legacy API is what this used to call, but Google no longer enables it on new Cloud projects:
+ * a project that only has "Places API (New)" switched on answers every legacy call with
+ * REQUEST_DENIED, which silently emptied the address autocomplete and blocked venue photos.
+ */
 interface PlacesApi {
 
-    @GET("maps/api/place/autocomplete/json")
+    @POST("v1/places:autocomplete")
     suspend fun autocomplete(
-        @Query("input") input: String,
-        @Query("key") apiKey: String,
-        @Query("components") components: String = "country:gr",
-        @Query("language") language: String = "el",
+        @Header("X-Goog-Api-Key") apiKey: String,
+        @Body request: PlacesAutocompleteRequest,
     ): PlacesAutocompleteResponse
 
-    /** Looks up a venue by its name/address and asks only for its photos - used by
-     *  [gr.gtar.jobclosure.ui.components.VenuePhotoPreview] to show a real photo of the
-     *  church/reception venue on the detail screen. */
-    @GET("maps/api/place/findplacefromtext/json")
-    suspend fun findPlace(
-        @Query("input") input: String,
-        @Query("key") apiKey: String,
-        @Query("inputtype") inputType: String = "textquery",
-        @Query("fields") fields: String = "photos",
-    ): PlaceFindResponse
+    /**
+     * Text Search. [fieldMask] is mandatory on this API and doubles as the billing tier selector -
+     * asking only for `places.photos` keeps it to what the venue-photo preview actually needs.
+     */
+    @POST("v1/places:searchText")
+    suspend fun searchText(
+        @Header("X-Goog-Api-Key") apiKey: String,
+        @Header("X-Goog-FieldMask") fieldMask: String,
+        @Body request: PlacesTextSearchRequest,
+    ): PlacesTextSearchResponse
+
+    companion object {
+        const val BASE_URL = "https://places.googleapis.com/"
+        const val PHOTO_FIELD_MASK = "places.photos"
+    }
 }
 
 @JsonClass(generateAdapter = true)
+data class PlacesAutocompleteRequest(
+    val input: String,
+    val includedRegionCodes: List<String> = listOf("gr"),
+    val languageCode: String = "el",
+)
+
+@JsonClass(generateAdapter = true)
 data class PlacesAutocompleteResponse(
-    val predictions: List<PlacePrediction> = emptyList(),
-    val status: String = "",
+    val suggestions: List<PlaceSuggestionEntry> = emptyList(),
+)
+
+@JsonClass(generateAdapter = true)
+data class PlaceSuggestionEntry(
+    val placePrediction: PlacePrediction? = null,
 )
 
 @JsonClass(generateAdapter = true)
 data class PlacePrediction(
-    val description: String,
+    val text: PlaceText? = null,
 )
 
 @JsonClass(generateAdapter = true)
-data class PlaceFindResponse(
-    val candidates: List<PlaceCandidate> = emptyList(),
-    /** "OK" / "ZERO_RESULTS" on success, otherwise the reason the call was rejected -
-     *  "REQUEST_DENIED" when the key can't use this API, "OVER_QUERY_LIMIT", ... */
-    val status: String = "",
-    @Json(name = "error_message") val errorMessage: String? = null,
+data class PlaceText(
+    val text: String = "",
 )
 
 @JsonClass(generateAdapter = true)
-data class PlaceCandidate(
+data class PlacesTextSearchRequest(
+    val textQuery: String,
+    val languageCode: String = "el",
+    val maxResultCount: Int = 1,
+)
+
+@JsonClass(generateAdapter = true)
+data class PlacesTextSearchResponse(
+    val places: List<PlaceResult> = emptyList(),
+)
+
+@JsonClass(generateAdapter = true)
+data class PlaceResult(
     val photos: List<PlacePhotoRef> = emptyList(),
 )
 
 @JsonClass(generateAdapter = true)
 data class PlacePhotoRef(
-    @Json(name = "photo_reference") val photoReference: String,
+    /** Resource name, e.g. `places/ChIJ.../photos/AeJb...` - the path the media endpoint takes. */
+    @Json(name = "name") val name: String = "",
 )
