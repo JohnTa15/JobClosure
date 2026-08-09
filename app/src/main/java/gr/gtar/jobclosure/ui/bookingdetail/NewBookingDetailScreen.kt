@@ -67,6 +67,7 @@ import gr.gtar.jobclosure.ui.components.MiniMapPreview
 import gr.gtar.jobclosure.ui.components.NewChip
 import gr.gtar.jobclosure.ui.components.NewIconButton
 import gr.gtar.jobclosure.ui.components.NewSectionLabel
+import gr.gtar.jobclosure.ui.components.VenuePhotoPreview
 import gr.gtar.jobclosure.ui.theme.AppTheme
 import gr.gtar.jobclosure.ui.theme.AppThemePalettes
 import gr.gtar.jobclosure.ui.theme.NewUiColors
@@ -252,6 +253,27 @@ fun NewBookingDetailScreen(
                 state.mapPreviewCoordinates?.let { (lat, lon) ->
                     Box(modifier = Modifier.padding(top = 16.dp)) {
                         MiniMapPreview(latitude = lat, longitude = lon, modifier = Modifier.fillMaxWidth())
+                    }
+                }
+
+                if (state.settings.mapsProvider == MapsProvider.GOOGLE && state.settings.mapsApiKey.isNotBlank()) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 16.dp)) {
+                        if (booking.churchAddress.isNotBlank()) {
+                            VenuePhotoPreview(
+                                label = "Εκκλησία",
+                                query = listOfNotNull(booking.churchName.ifBlank { null }, booking.churchAddress.ifBlank { null }).joinToString(", "),
+                                apiKey = state.settings.mapsApiKey,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        if (booking.hasReception && booking.receptionVenueAddress.isNotBlank()) {
+                            VenuePhotoPreview(
+                                label = "Δεξίωση",
+                                query = listOfNotNull(booking.receptionVenueName.ifBlank { null }, booking.receptionVenueAddress.ifBlank { null }).joinToString(", "),
+                                apiKey = state.settings.mapsApiKey,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
                     }
                 }
             }
