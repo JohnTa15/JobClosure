@@ -26,6 +26,17 @@ class SettingsViewModel(
 
     val updateStatus: StateFlow<UpdateCheckResult?> = UpdateStatusHolder.status
 
+    /**
+     * The stored settings, read straight from DataStore. [settings] is a StateFlow seeded with a
+     * placeholder [AppSettings], so `settings.first()` hands back those defaults synchronously
+     * whenever this ViewModel is young enough that DataStore hasn't emitted yet - and since a fresh
+     * ViewModel is built every time Settings is opened, that placeholder is exactly what the form
+     * used to prefill itself with, silently resetting the maps provider to OpenStreetMap and
+     * blanking the API key. Collecting the repository flow instead suspends until the real values
+     * arrive.
+     */
+    suspend fun currentSettings(): AppSettings = repository.settings.first()
+
     fun setHomeAddress(address: String) {
         viewModelScope.launch { repository.setHomeAddress(address) }
     }

@@ -57,7 +57,6 @@ import gr.gtar.jobclosure.ui.components.ChangelogDialog
 import gr.gtar.jobclosure.update.ApkUpdateManager
 import gr.gtar.jobclosure.update.DownloadResult
 import gr.gtar.jobclosure.update.UpdateCheckResult
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -108,7 +107,7 @@ fun SettingsScreen(
     }
 
     LaunchedEffect(Unit) {
-        val current = viewModel.settings.first()
+        val current = viewModel.currentSettings()
         homeAddress = current.homeAddress
         mapsApiKey = current.mapsApiKey
         mapsProvider = current.mapsProvider

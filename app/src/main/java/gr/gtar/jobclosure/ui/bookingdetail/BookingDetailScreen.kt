@@ -246,7 +246,13 @@ fun BookingDetailScreen(
 
             state.mapPreviewCoordinates?.let { (lat, lon) ->
                 HorizontalDivider()
-                MiniMapPreview(latitude = lat, longitude = lon, modifier = Modifier.fillMaxWidth())
+                MiniMapPreview(
+                    latitude = lat,
+                    longitude = lon,
+                    provider = state.settings.mapsProvider,
+                    googleApiKey = state.settings.mapsApiKey,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
     }

@@ -29,11 +29,16 @@ data class BookingDetailUiState(
     val isLoadingDroneConditions: Boolean = false,
     val churchDroneConditions: DroneConditionsResult? = null,
     val receptionDroneConditions: DroneConditionsResult? = null,
-    /** (lat, lon) of the primary venue (church, or the reception venue for non-sacrament
-     *  bookings), for the minimap preview at the bottom of the screen. Null while geocoding or if
-     *  there's no address to show. */
-    val mapPreviewCoordinates: Pair<Double, Double>? = null,
-)
+    /** (lat, lon) per venue, for the minimap preview and the OpenStreetMap-mode venue photos at
+     *  the bottom of the screen. Null while geocoding or if there's no address to resolve. */
+    val churchCoordinates: Pair<Double, Double>? = null,
+    val receptionCoordinates: Pair<Double, Double>? = null,
+) {
+    /** The minimap centres on the church, falling back to the reception venue for booking types
+     *  (school events, performances, ...) that only ever fill in the reception fields. */
+    val mapPreviewCoordinates: Pair<Double, Double>?
+        get() = churchCoordinates ?: receptionCoordinates
+}
 
 class BookingDetailViewModel(
     application: Application,
@@ -64,7 +69,11 @@ class BookingDetailViewModel(
             val booking = bookingRepository.getById(bookingId)
             val settings = settingsRepository.settings.first()
             _uiState.value = _uiState.value.copy(
-                booking = booking, settings = settings, isLoading = false, mapPreviewCoordinates = null,
+                booking = booking,
+                settings = settings,
+                isLoading = false,
+                churchCoordinates = null,
+                receptionCoordinates = null,
             )
             if (booking != null) {
                 refreshTravelTimes(booking, settings)
@@ -145,12 +154,22 @@ class BookingDetailViewModel(
         )
     }
 
-    /** Church address if there is one (sacrament bookings), else the reception venue's - covers
-     *  school events/performances/other types, which only ever fill in the reception fields. */
+    /** Resolves each venue's coordinates in parallel. Both feed the venue photo lookups; whichever
+     *  of the two exists also centres the minimap (see [BookingDetailUiState.mapPreviewCoordinates]). */
     private suspend fun refreshMapPreview(booking: Booking) {
-        val address = booking.churchAddress.ifBlank { booking.receptionVenueAddress }
-        if (address.isBlank()) return
-        val coordinates = placeSearchRepository.geocode(address)
-        _uiState.value = _uiState.value.copy(mapPreviewCoordinates = coordinates)
+        val churchDeferred = viewModelScope.async {
+            if (booking.churchAddress.isBlank()) null else placeSearchRepository.geocode(booking.churchAddress)
+        }
+        val receptionDeferred = viewModelScope.async {
+            if (!booking.hasReception || booking.receptionVenueAddress.isBlank()) {
+                null
+            } else {
+                placeSearchRepository.geocode(booking.receptionVenueAddress)
+            }
+        }
+        _uiState.value = _uiState.value.copy(
+            churchCoordinates = churchDeferred.await(),
+            receptionCoordinates = receptionDeferred.await(),
+        )
     }
 }

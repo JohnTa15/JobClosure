@@ -83,7 +83,6 @@ import gr.gtar.jobclosure.update.ApkUpdateManager
 import gr.gtar.jobclosure.update.DownloadResult
 import gr.gtar.jobclosure.update.UpdateCheckResult
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /** Restyled settings screen - see design_handoff_theme_switcher/README.md "Screen 4". Also hosts
@@ -136,7 +135,7 @@ fun NewSettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
     }
 
     LaunchedEffect(Unit) {
-        val current = viewModel.settings.first()
+        val current = viewModel.currentSettings()
         homeAddress = current.homeAddress
         mapsApiKey = current.mapsApiKey
         mapsProvider = current.mapsProvider
