@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import gr.gtar.jobclosure.data.MapsProvider
@@ -56,7 +57,8 @@ private data class TileLocation(val tileX: Int, val tileY: Int, val pixelX: Doub
 private data class MapImage(val bitmap: ImageBitmap, val tile: TileLocation?)
 
 private sealed interface MapResult {
-    data class Success(val image: MapImage) : MapResult
+    /** Carries the undecoded [bytes] alongside the image so the caller can cache them. */
+    class Success(val image: MapImage, val bytes: ByteArray) : MapResult
     data class Failure(val message: String) : MapResult
 }
 
@@ -77,6 +79,7 @@ fun MiniMapPreview(
     googleApiKey: String = "",
 ) {
     val useGoogle = provider == MapsProvider.GOOGLE && googleApiKey.isNotBlank()
+    val cacheRoot = LocalContext.current.cacheDir
     var loaded by remember(latitude, longitude, useGoogle) { mutableStateOf<MapImage?>(null) }
     var error by remember(latitude, longitude, useGoogle) { mutableStateOf<String?>(null) }
 
@@ -84,7 +87,24 @@ fun MiniMapPreview(
         loaded = null
         error = null
         when (val result = withContext(Dispatchers.IO) {
-            if (useGoogle) loadGoogleStaticMap(latitude, longitude, googleApiKey) else loadTile(latitude, longitude)
+            // The pin overlay's position is derived locally from the coordinates, so only the
+            // image itself has to survive in the cache.
+            val tile = if (useGoogle) null else locateTile(latitude, longitude, ZOOM)
+            val cacheKey = "map|google=$useGoogle|z=$ZOOM|at=$latitude,$longitude"
+            val cached = RemoteImageCache.load(cacheRoot, cacheKey)
+                ?.takeIf { it.isNotEmpty() }
+                ?.let { bytes -> BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.let { bytes to it } }
+            if (cached != null) {
+                MapResult.Success(MapImage(cached.second.asImageBitmap(), tile), cached.first)
+            } else {
+                val fetched = if (useGoogle) {
+                    loadGoogleStaticMap(latitude, longitude, googleApiKey)
+                } else {
+                    loadTile(latitude, longitude, tile!!)
+                }
+                (fetched as? MapResult.Success)?.let { RemoteImageCache.store(cacheRoot, cacheKey, it.bytes) }
+                fetched
+            }
         }) {
             is MapResult.Success -> loaded = result.image
             is MapResult.Failure -> error = result.message
@@ -172,7 +192,7 @@ private fun loadGoogleStaticMap(latitude: Double, longitude: Double, apiKey: Str
                     bytes.toString(Charsets.UTF_8).trim().takeIf { it.isNotBlank() }
                         ?: "Η απάντηση του Google Static Maps δεν ήταν εικόνα.",
                 )
-            MapResult.Success(MapImage(bitmap.asImageBitmap(), tile = null))
+            MapResult.Success(MapImage(bitmap.asImageBitmap(), tile = null), bytes)
         }
     } catch (e: Exception) {
         MapResult.Failure(e.message ?: "Αποτυχία σύνδεσης στο Google Static Maps.")
@@ -194,8 +214,7 @@ private fun locateTile(latitude: Double, longitude: Double, zoom: Int): TileLoca
     )
 }
 
-private fun loadTile(latitude: Double, longitude: Double): MapResult {
-    val tile = locateTile(latitude, longitude, ZOOM)
+private fun loadTile(latitude: Double, longitude: Double, tile: TileLocation): MapResult {
     val url = "https://tile.openstreetmap.org/$ZOOM/${tile.tileX}/${tile.tileY}.png"
     return try {
         val request = Request.Builder()
@@ -207,7 +226,7 @@ private fun loadTile(latitude: Double, longitude: Double): MapResult {
             val bytes = response.body?.bytes() ?: return MapResult.Failure("Κενή απάντηση από τον OpenStreetMap.")
             val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                 ?: return MapResult.Failure("Το tile του OpenStreetMap δεν διαβάστηκε.")
-            MapResult.Success(MapImage(bitmap.asImageBitmap(), tile))
+            MapResult.Success(MapImage(bitmap.asImageBitmap(), tile), bytes)
         }
     } catch (e: Exception) {
         MapResult.Failure(e.message ?: "Αποτυχία σύνδεσης στον OpenStreetMap.")

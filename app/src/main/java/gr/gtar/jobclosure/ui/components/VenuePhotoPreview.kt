@@ -23,6 +23,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -58,6 +59,13 @@ private sealed interface VenuePhotoState {
     data class Failed(val message: String) : VenuePhotoState
 }
 
+/** What a source returned, still as bytes so [RemoteImageCache] can keep it. */
+private sealed interface PhotoBytes {
+    class Found(val bytes: ByteArray) : PhotoBytes
+    data object NotFound : PhotoBytes
+    data class Failed(val message: String) : PhotoBytes
+}
+
 /**
  * A photo of a church/venue. With Google selected it asks Places (New) Text Search first, and falls
  * back to the lead image of a Wikipedia article near [coordinates] when Places has nothing - plenty
@@ -82,18 +90,36 @@ fun VenuePhotoPreview(
     val canAskGoogle = useGoogle && query.isNotBlank()
     if (!canAskGoogle && coordinates == null) return
 
+    val cacheRoot = LocalContext.current.cacheDir
     var state by remember(query, useGoogle, coordinates) { mutableStateOf<VenuePhotoState>(VenuePhotoState.Loading) }
 
     LaunchedEffect(query, useGoogle, googleApiKey, coordinates) {
         state = VenuePhotoState.Loading
         state = withContext(Dispatchers.IO) {
+            val cacheKey = "venue|google=$canAskGoogle|q=$query|at=${coordinates?.first},${coordinates?.second}"
+            RemoteImageCache.load(cacheRoot, cacheKey)?.let { cached ->
+                return@withContext if (cached.isEmpty()) VenuePhotoState.NotFound else cached.toPhotoState()
+            }
+
             val fromGoogle = if (canAskGoogle) loadGooglePlacePhoto(query, googleApiKey) else null
-            when {
-                fromGoogle is VenuePhotoState.Loaded -> fromGoogle
+            val result = when {
+                fromGoogle is PhotoBytes.Found -> fromGoogle
                 // A rejected call is the user's to fix, so it wins over any fallback result.
-                fromGoogle is VenuePhotoState.Failed -> fromGoogle
+                fromGoogle is PhotoBytes.Failed -> fromGoogle
                 coordinates != null -> loadWikipediaPhoto(coordinates.first, coordinates.second)
-                else -> VenuePhotoState.NotFound
+                else -> PhotoBytes.NotFound
+            }
+
+            when (result) {
+                is PhotoBytes.Found -> {
+                    RemoteImageCache.store(cacheRoot, cacheKey, result.bytes)
+                    result.bytes.toPhotoState()
+                }
+                PhotoBytes.NotFound -> {
+                    RemoteImageCache.store(cacheRoot, cacheKey, ByteArray(0))
+                    VenuePhotoState.NotFound
+                }
+                is PhotoBytes.Failed -> VenuePhotoState.Failed(result.message)
             }
         }
     }
@@ -148,11 +174,11 @@ fun VenuePhotoPreview(
 
 /**
  * Text Search on Places API (New) for the venue, then its first photo through the media endpoint.
- * A search that simply matches nothing (or a venue with no photography) is [VenuePhotoState.NotFound];
+ * A search that simply matches nothing (or a venue with no photography) is [PhotoBytes.NotFound];
  * a rejected call carries Google's own error body, since that's what says which API or billing
  * setting the key is missing.
  */
-private suspend fun loadGooglePlacePhoto(query: String, apiKey: String): VenuePhotoState {
+private suspend fun loadGooglePlacePhoto(query: String, apiKey: String): PhotoBytes {
     val response = try {
         NetworkModule.placesApi.searchText(
             apiKey = apiKey,
@@ -161,26 +187,26 @@ private suspend fun loadGooglePlacePhoto(query: String, apiKey: String): VenuePh
         )
     } catch (e: HttpException) {
         val body = e.response()?.errorBody()?.string()?.trim()?.takeIf { it.isNotBlank() }
-        return VenuePhotoState.Failed(body ?: "Google Places: HTTP ${e.code()}")
+        return PhotoBytes.Failed(body ?: "Google Places: HTTP ${e.code()}")
     } catch (e: Exception) {
-        return VenuePhotoState.Failed(e.message ?: "Αποτυχία σύνδεσης στο Google Places.")
+        return PhotoBytes.Failed(e.message ?: "Αποτυχία σύνδεσης στο Google Places.")
     }
 
     val photoName = response.places.firstOrNull()?.photos?.firstOrNull()?.name
         ?.takeIf { it.isNotBlank() }
-        ?: return VenuePhotoState.NotFound
+        ?: return PhotoBytes.NotFound
 
     val url = "$GOOGLE_PHOTO_URL$photoName/media".toHttpUrl().newBuilder()
         .addQueryParameter("maxWidthPx", PHOTO_MAX_WIDTH.toString())
         .addQueryParameter("key", apiKey)
         .build()
-    return downloadBitmap(Request.Builder().url(url).build())
+    return downloadImageBytes(Request.Builder().url(url).build())
 }
 
 /** Wikipedia's geosearch generator returns articles near a point; `pageimages` then gives each
  *  one's lead thumbnail. Takes the first article that actually has an image. Nothing nearby is the
- *  norm for small private venues, so any miss here is [VenuePhotoState.NotFound], not an error. */
-private fun loadWikipediaPhoto(latitude: Double, longitude: Double): VenuePhotoState {
+ *  norm for small private venues, so any miss here is [PhotoBytes.NotFound], not an error. */
+private fun loadWikipediaPhoto(latitude: Double, longitude: Double): PhotoBytes {
     val url = WIKIPEDIA_API_URL.toHttpUrl().newBuilder()
         .addQueryParameter("action", "query")
         .addQueryParameter("format", "json")
@@ -197,10 +223,10 @@ private fun loadWikipediaPhoto(latitude: Double, longitude: Double): VenuePhotoS
     val thumbnailUrl = try {
         val request = Request.Builder().url(url).header("User-Agent", USER_AGENT).build()
         OkHttpClient().newCall(request).execute().use { response ->
-            if (!response.isSuccessful) return VenuePhotoState.NotFound
-            val body = response.body?.string() ?: return VenuePhotoState.NotFound
+            if (!response.isSuccessful) return PhotoBytes.NotFound
+            val body = response.body?.string() ?: return PhotoBytes.NotFound
             val pages = JSONObject(body).optJSONObject("query")?.optJSONArray("pages")
-                ?: return VenuePhotoState.NotFound
+                ?: return PhotoBytes.NotFound
             (0 until pages.length())
                 .asSequence()
                 .mapNotNull { index -> pages.optJSONObject(index)?.optJSONObject("thumbnail")?.optString("source") }
@@ -208,25 +234,28 @@ private fun loadWikipediaPhoto(latitude: Double, longitude: Double): VenuePhotoS
         }
     } catch (e: Exception) {
         null
-    } ?: return VenuePhotoState.NotFound
+    } ?: return PhotoBytes.NotFound
 
-    return downloadBitmap(Request.Builder().url(thumbnailUrl).header("User-Agent", USER_AGENT).build())
+    return downloadImageBytes(Request.Builder().url(thumbnailUrl).header("User-Agent", USER_AGENT).build())
 }
 
-private fun downloadBitmap(request: Request): VenuePhotoState = try {
+private fun downloadImageBytes(request: Request): PhotoBytes = try {
     OkHttpClient().newCall(request).execute().use { response ->
         val bytes = response.body?.bytes()
         when {
-            !response.isSuccessful -> VenuePhotoState.Failed(
+            !response.isSuccessful -> PhotoBytes.Failed(
                 bytes?.toString(Charsets.UTF_8)?.trim()?.takeIf { it.isNotBlank() }
                     ?: "Η λήψη της φωτογραφίας απέτυχε (HTTP ${response.code}).",
             )
-            bytes == null -> VenuePhotoState.NotFound
-            else -> BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                ?.let { VenuePhotoState.Loaded(it.asImageBitmap()) }
-                ?: VenuePhotoState.NotFound
+            bytes == null || bytes.isEmpty() -> PhotoBytes.NotFound
+            else -> PhotoBytes.Found(bytes)
         }
     }
 } catch (e: Exception) {
-    VenuePhotoState.Failed(e.message ?: "Αποτυχία λήψης φωτογραφίας.")
+    PhotoBytes.Failed(e.message ?: "Αποτυχία λήψης φωτογραφίας.")
 }
+
+private fun ByteArray.toPhotoState(): VenuePhotoState =
+    BitmapFactory.decodeByteArray(this, 0, size)
+        ?.let { VenuePhotoState.Loaded(it.asImageBitmap()) }
+        ?: VenuePhotoState.NotFound
