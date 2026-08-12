@@ -20,6 +20,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+          # Caches ~/.gradle, which includes the wrapper's Gradle distribution. Fetching that from
+          # services.gradle.org has now failed the build twice on its own, and it is the very first
+          # thing every job does, so a miss there wastes the whole run before a line is compiled.
+          cache: gradle
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
@@ -52,6 +56,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+          # Caches ~/.gradle, which includes the wrapper's Gradle distribution. Fetching that from
+          # services.gradle.org has now failed the build twice on its own, and it is the very first
+          # thing every job does, so a miss there wastes the whole run before a line is compiled.
+          cache: gradle
 
       - name: Package Windows installer (.msi)
         env:
@@ -90,6 +98,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+          # Caches ~/.gradle, which includes the wrapper's Gradle distribution. Fetching that from
+          # services.gradle.org has now failed the build twice on its own, and it is the very first
+          # thing every job does, so a miss there wastes the whole run before a line is compiled.
+          cache: gradle
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
@@ -124,6 +136,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+          # Caches ~/.gradle, which includes the wrapper's Gradle distribution. Fetching that from
+          # services.gradle.org has now failed the build twice on its own, and it is the very first
+          # thing every job does, so a miss there wastes the whole run before a line is compiled.
+          cache: gradle
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
@@ -163,6 +179,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+          # Caches ~/.gradle, which includes the wrapper's Gradle distribution. Fetching that from
+          # services.gradle.org has now failed the build twice on its own, and it is the very first
+          # thing every job does, so a miss there wastes the whole run before a line is compiled.
+          cache: gradle
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
