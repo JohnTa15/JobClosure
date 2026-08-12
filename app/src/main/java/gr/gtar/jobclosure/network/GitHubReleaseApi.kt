@@ -34,4 +34,10 @@ data class GitHubReleaseAsset(
      *  and Accept: application/octet-stream) to actually download it from a private repo; the
      *  plain browser_download_url only works unauthenticated, which private repos reject. */
     val url: String,
+    /** Final size of the uploaded asset, used to reject a download that came back short. */
+    val size: Long = 0,
+    /** "sha256:<hex>" once GitHub has finished processing the upload; absent on older releases. */
+    val digest: String? = null,
+    /** "uploaded" once the asset is complete - anything else means it is still being written. */
+    val state: String = "",
 )

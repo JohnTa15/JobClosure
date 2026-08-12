@@ -18,6 +18,14 @@ class UpdateRepository(private val api: GitHubReleaseApi) {
             val apkAsset = release.assets.firstOrNull { it.name.endsWith(".apk") }
                 ?: return UpdateCheckResult.Error("Δεν βρέθηκε APK στην τελευταία έκδοση")
 
+            // CI republishes this rolling release on every push, deleting the old assets before
+            // uploading the new ones. Downloading during that window yields a truncated APK that
+            // the package installer rejects with a bare "There's a problem with the app file", so
+            // an asset GitHub hasn't finished writing is treated as "no update yet".
+            if (apkAsset.state.isNotBlank() && apkAsset.state != "uploaded") {
+                return UpdateCheckResult.Error("Η νέα έκδοση ανεβαίνει ακόμα - δοκίμασε ξανά σε λίγο")
+            }
+
             val remoteBuild = extractBuildNumber(release.name ?: release.tagName)
             val localBuild = extractBuildNumber(BuildConfig.VERSION_NAME)
 
@@ -25,6 +33,8 @@ class UpdateRepository(private val api: GitHubReleaseApi) {
                 UpdateCheckResult.UpdateAvailable(
                     versionName = "1.0.$remoteBuild",
                     downloadUrl = apkAsset.url,
+                    expectedSizeBytes = apkAsset.size,
+                    expectedSha256 = apkAsset.digest?.removePrefix("sha256:"),
                 )
             } else {
                 UpdateCheckResult.UpToDate

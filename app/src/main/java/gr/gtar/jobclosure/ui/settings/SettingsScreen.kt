@@ -391,7 +391,11 @@ private fun UpdateSection(viewModel: SettingsViewModel) {
                                 scope.launch {
                                     when (
                                         val result = ApkUpdateManager.downloadUpdate(
-                                            context, status.downloadUrl, settings.gitHubToken,
+                                            context = context,
+                                            downloadUrl = status.downloadUrl,
+                                            gitHubToken = settings.gitHubToken,
+                                            expectedSizeBytes = status.expectedSizeBytes,
+                                            expectedSha256 = status.expectedSha256,
                                         )
                                     ) {
                                         is DownloadResult.Success -> {

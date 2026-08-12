@@ -487,7 +487,14 @@ private fun NewUpdateCard(
                                 downloadError = null
                                 isDownloading = true
                                 scope.launch {
-                                    when (val result = ApkUpdateManager.downloadUpdate(context, status.downloadUrl, settings.gitHubToken)) {
+                                    val result = ApkUpdateManager.downloadUpdate(
+                                        context = context,
+                                        downloadUrl = status.downloadUrl,
+                                        gitHubToken = settings.gitHubToken,
+                                        expectedSizeBytes = status.expectedSizeBytes,
+                                        expectedSha256 = status.expectedSha256,
+                                    )
+                                    when (result) {
                                         is DownloadResult.Success -> {
                                             isDownloading = false
                                             ApkUpdateManager.promptInstall(context, result.apkUri)

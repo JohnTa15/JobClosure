@@ -12,6 +12,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
+import java.security.MessageDigest
 
 sealed interface DownloadResult {
     data class Success(val apkUri: Uri) : DownloadResult
@@ -52,7 +53,13 @@ object ApkUpdateManager {
      * request - required to fetch a release asset from a private repo via the api.github.com
      * asset URL (plain unauthenticated browser_download_url links don't work there).
      */
-    suspend fun downloadUpdate(context: Context, downloadUrl: String, gitHubToken: String): DownloadResult =
+    suspend fun downloadUpdate(
+        context: Context,
+        downloadUrl: String,
+        gitHubToken: String,
+        expectedSizeBytes: Long = 0,
+        expectedSha256: String? = null,
+    ): DownloadResult =
         withContext(Dispatchers.IO) {
             try {
                 val requestBuilder = Request.Builder()
@@ -84,6 +91,11 @@ object ApkUpdateManager {
                         FileOutputStream(file).use { output -> input.copyTo(output) }
                     }
 
+                    verify(file, expectedSizeBytes, expectedSha256)?.let { problem ->
+                        file.delete()
+                        return@withContext DownloadResult.Error(problem)
+                    }
+
                     val uri = FileProvider.getUriForFile(
                         appContext,
                         "${appContext.packageName}.fileprovider",
@@ -95,6 +107,35 @@ object ApkUpdateManager {
                 DownloadResult.Error("Αποτυχία λήψης: ${e.message ?: "άγνωστο σφάλμα"}")
             }
         }
+
+    /**
+     * Returns a message describing what's wrong with the downloaded file, or null when it matches
+     * what the release said it should be. Without this the installer is handed whatever arrived and
+     * answers a truncated file with nothing more useful than "There's a problem with the app file",
+     * which is indistinguishable from a genuinely broken build.
+     */
+    private fun verify(file: File, expectedSizeBytes: Long, expectedSha256: String?): String? {
+        if (expectedSizeBytes > 0 && file.length() != expectedSizeBytes) {
+            return "Η λήψη ήρθε ελλιπής (${file.length()} από $expectedSizeBytes bytes) - δοκίμασε ξανά"
+        }
+        if (expectedSha256.isNullOrBlank()) return null
+
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                val read = input.read(buffer)
+                if (read <= 0) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        val actual = digest.digest().joinToString("") { "%02x".format(it) }
+        return if (actual.equals(expectedSha256, ignoreCase = true)) {
+            null
+        } else {
+            "Το αρχείο που κατέβηκε δεν ταιριάζει με την έκδοση - δοκίμασε ξανά"
+        }
+    }
 
     fun promptInstall(context: Context, apkUri: Uri) {
         val intent = Intent(Intent.ACTION_VIEW).apply {
