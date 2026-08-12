@@ -24,7 +24,25 @@ object CalendarHelper {
     }
 
     /** Calendars the app can write events into (e.g. a Google account or Samsung Calendar). */
-    fun getWritableCalendars(context: Context): List<CalendarInfo> {
+    fun getWritableCalendars(context: Context): List<CalendarInfo> =
+        queryCalendars(
+            context = context,
+            selection = "${CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL} >= ?",
+            selectionArgs = arrayOf(CalendarContract.Calendars.CAL_ACCESS_CONTRIBUTOR.toString()),
+        )
+
+    /**
+     * Every calendar that can be read, writable or not. Importing past sacraments has to look at
+     * read-only ones too - a calendar shared by someone else is exactly where a lot of them are.
+     */
+    fun getReadableCalendars(context: Context): List<CalendarInfo> =
+        queryCalendars(context = context, selection = null, selectionArgs = null)
+
+    private fun queryCalendars(
+        context: Context,
+        selection: String?,
+        selectionArgs: Array<String>?,
+    ): List<CalendarInfo> {
         if (!hasCalendarPermissions(context)) return emptyList()
 
         val projection = arrayOf(
@@ -33,8 +51,6 @@ object CalendarHelper {
             CalendarContract.Calendars.ACCOUNT_NAME,
             CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL,
         )
-        val selection = "${CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL} >= ?"
-        val selectionArgs = arrayOf(CalendarContract.Calendars.CAL_ACCESS_CONTRIBUTOR.toString())
 
         val result = mutableListOf<CalendarInfo>()
         context.contentResolver.query(

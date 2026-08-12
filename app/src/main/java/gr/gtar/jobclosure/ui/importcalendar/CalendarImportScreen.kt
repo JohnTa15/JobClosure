@@ -9,6 +9,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -127,10 +129,11 @@ fun CalendarImportScreen(
                 state.isScanning -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
-                state.hasScanned && state.candidates.isEmpty() -> CenteredNote(
-                    "Δεν βρέθηκαν γάμοι ή βαφτίσεις στο ημερολόγιο των τελευταίων 10 ετών.",
-                )
+                // The filters stay on screen even when they leave nothing to show - hiding them
+                // there would strand the user with an empty list and no way to widen it again.
                 else -> Column(modifier = Modifier.fillMaxSize()) {
+                    ImportFilters(state = state, palette = palette, viewModel = viewModel)
+
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
@@ -148,17 +151,32 @@ fun CalendarImportScreen(
                         }
                     }
 
-                    LazyColumn(
-                        modifier = Modifier.weight(1f).padding(horizontal = 20.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 10.dp),
-                    ) {
-                        items(state.candidates, key = { it.parsed.calendarEventId }) { candidate ->
-                            CandidateRow(
-                                candidate = candidate,
-                                accent = palette.accent,
-                                onToggle = { viewModel.toggle(candidate.parsed.calendarEventId) },
+                    if (state.candidates.isEmpty()) {
+                        Box(Modifier.weight(1f).fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                            Text(
+                                if (state.calendars.isNotEmpty() && state.selectedCalendarIds.isEmpty()) {
+                                    "Δεν έχει επιλεγεί κανένα ημερολόγιο."
+                                } else {
+                                    "Δεν βρέθηκαν γάμοι ή βαφτίσεις με αυτά τα φίλτρα."
+                                },
+                                color = NewUiColors.onGroundMuted,
+                                fontSize = 13.sp,
+                                textAlign = TextAlign.Center,
                             )
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.weight(1f).padding(horizontal = 20.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 10.dp),
+                        ) {
+                            items(state.candidates, key = { it.parsed.calendarEventId }) { candidate ->
+                                CandidateRow(
+                                    candidate = candidate,
+                                    accent = palette.accent,
+                                    onToggle = { viewModel.toggle(candidate.parsed.calendarEventId) },
+                                )
+                            }
                         }
                     }
 
@@ -185,6 +203,76 @@ fun CalendarImportScreen(
             }
         }
     }
+}
+
+/**
+ * Which calendars to read and which year to show. Both narrow an already-completed scan rather than
+ * re-reading the calendar, so switching between them is immediate.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ImportFilters(
+    state: CalendarImportUiState,
+    palette: AccentPalette,
+    viewModel: CalendarImportViewModel,
+) {
+    Column(modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 6.dp)) {
+        if (state.calendars.size > 1) {
+            NewSectionLabel(text = "Ημερολόγια", modifier = Modifier.padding(bottom = 6.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                state.calendars.forEach { calendar ->
+                    val selected = calendar.id in state.selectedCalendarIds
+                    FilterPill(
+                        text = calendar.displayName.ifBlank { calendar.accountName },
+                        selected = selected,
+                        accent = palette,
+                        onClick = { viewModel.setCalendarSelected(calendar.id, !selected) },
+                    )
+                }
+            }
+        }
+
+        if (state.availableYears.isNotEmpty()) {
+            NewSectionLabel(text = "Έτος", modifier = Modifier.padding(top = 10.dp, bottom = 6.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterPill(
+                    text = "Όλα",
+                    selected = state.selectedYear == null,
+                    accent = palette,
+                    onClick = { viewModel.setYear(null) },
+                )
+                state.availableYears.forEach { year ->
+                    FilterPill(
+                        text = year.toString(),
+                        selected = state.selectedYear == year,
+                        accent = palette,
+                        onClick = { viewModel.setYear(if (state.selectedYear == year) null else year) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FilterPill(text: String, selected: Boolean, accent: AccentPalette, onClick: () -> Unit) {
+    Text(
+        text,
+        color = if (selected) accent.onAccentContainer else NewUiColors.onGroundDim,
+        fontSize = 12.sp,
+        fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+        modifier = Modifier
+            .padding(bottom = 8.dp)
+            .clip(RoundedCornerShape(999.dp))
+            .background(if (selected) accent.accentContainer else Color(0x80232532))
+            .border(
+                1.dp,
+                if (selected) accent.accentBorder else NewUiColors.outlineSoft,
+                RoundedCornerShape(999.dp),
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    )
 }
 
 @Composable

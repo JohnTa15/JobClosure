@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import gr.gtar.jobclosure.calendar.CalendarBookingParser
 import gr.gtar.jobclosure.calendar.CalendarHelper
+import gr.gtar.jobclosure.calendar.CalendarInfo
 import gr.gtar.jobclosure.calendar.ParsedCalendarBooking
 import gr.gtar.jobclosure.data.Booking
 import gr.gtar.jobclosure.data.BookingRepository
@@ -34,6 +35,12 @@ data class CalendarImportUiState(
     val importedCount: Int? = null,
     val duplicatesRemoved: Int? = null,
     val missingPermission: Boolean = false,
+    /** Every readable calendar on the device, and which of them the scan is looking at. */
+    val calendars: List<CalendarInfo> = emptyList(),
+    val selectedCalendarIds: Set<Long> = emptySet(),
+    /** Years that actually contain something, newest first. Null [selectedYear] means all of them. */
+    val availableYears: List<Int> = emptyList(),
+    val selectedYear: Int? = null,
 ) {
     val selectableCount: Int get() = candidates.count { !it.alreadyImported }
     val selectedCount: Int get() = candidates.count { it.selected && !it.alreadyImported }
@@ -64,6 +71,12 @@ class CalendarImportViewModel(
     private val _uiState = MutableStateFlow(CalendarImportUiState())
     val uiState: StateFlow<CalendarImportUiState> = _uiState.asStateFlow()
 
+    /** Everything the last scan found, before the calendar and year filters narrow it down. The
+     *  calendar is read once and filtered in memory, so changing a filter is instant. */
+    private var scanned: List<ParsedCalendarBooking> = emptyList()
+    private var knownEventIds: Set<Long> = emptySet()
+    private var knownContent: Set<String> = emptySet()
+
     fun scan() {
         val context = getApplication<Application>()
         if (!CalendarHelper.hasCalendarPermissions(context)) {
@@ -79,38 +92,84 @@ class CalendarImportViewModel(
             val from = now.minusYears(YEARS_BACK).atZone(zone).toInstant().toEpochMilli()
             val to = now.plusYears(1).atZone(zone).toInstant().toEpochMilli()
 
-            val parsed = withContext(Dispatchers.IO) {
-                CalendarHelper.readEvents(context, from, to)
-                    .mapNotNull(CalendarBookingParser::parse)
-                    // A calendar shared with someone else delivers the same sacrament twice, once
-                    // per calendar, with different event ids but identical content. Offering both
-                    // would import the job twice.
-                    .distinctBy { contentKey(it.startMillis, it.type.name, it.clientName) }
+            val calendars = withContext(Dispatchers.IO) { CalendarHelper.getReadableCalendars(context) }
+            scanned = withContext(Dispatchers.IO) {
+                CalendarHelper.readEvents(context, from, to).mapNotNull(CalendarBookingParser::parse)
             }
 
             // Two ways an event can already be in the app: it was imported before (so its calendar
             // event id is on a booking), or the app itself created it (same id, other direction).
             val existing = bookingRepository.observeAll().first()
-            val knownEventIds = existing.flatMap { listOfNotNull(it.churchCalendarEventId, it.receptionCalendarEventId) }.toSet()
+            knownEventIds = existing.flatMap { listOfNotNull(it.churchCalendarEventId, it.receptionCalendarEventId) }.toSet()
             // Matching on content as well as event id: the same sacrament imported from the other
             // copy of a shared calendar carries a different event id but is still the same job.
-            val knownContent = existing.map {
+            knownContent = existing.map {
                 contentKey(Booking.epochMinute(it.ceremonyStart) * 60_000L, it.type.name, it.title)
             }.toSet()
 
-            val candidates = parsed.map { candidate ->
+            // A first scan looks everywhere; a rescan keeps whatever the user had narrowed it to,
+            // dropping any calendar that has since disappeared from the device.
+            val previouslySelected = _uiState.value.selectedCalendarIds
+            val selectedIds = previouslySelected
+                .intersect(calendars.map { it.id }.toSet())
+                .ifEmpty { calendars.map { it.id }.toSet() }
+
+            _uiState.value = _uiState.value.copy(
+                isScanning = false,
+                hasScanned = true,
+                calendars = calendars,
+                selectedCalendarIds = selectedIds,
+            )
+            applyFilters()
+        }
+    }
+
+    fun setCalendarSelected(calendarId: Long, selected: Boolean) {
+        val current = _uiState.value.selectedCalendarIds
+        val updated = if (selected) current + calendarId else current - calendarId
+        _uiState.value = _uiState.value.copy(selectedCalendarIds = updated)
+        applyFilters()
+    }
+
+    fun setYear(year: Int?) {
+        _uiState.value = _uiState.value.copy(selectedYear = year)
+        applyFilters()
+    }
+
+    /**
+     * Narrows the scan to the chosen calendars and year, then collapses duplicates. The order
+     * matters: deduplicating before the calendar filter would drop a copy the user is about to
+     * exclude and keep nothing in its place.
+     */
+    private fun applyFilters() {
+        val state = _uiState.value
+        val zone = ZoneId.systemDefault()
+
+        val fromSelectedCalendars = scanned.filter { it.calendarId in state.selectedCalendarIds }
+        val years = fromSelectedCalendars
+            .map { yearOf(it.startMillis, zone) }
+            .distinct()
+            .sortedDescending()
+        val year = state.selectedYear?.takeIf { it in years }
+
+        val candidates = fromSelectedCalendars
+            .filter { year == null || yearOf(it.startMillis, zone) == year }
+            .distinctBy { contentKey(it.startMillis, it.type.name, it.clientName) }
+            .map { candidate ->
                 val already = candidate.calendarEventId in knownEventIds ||
                     contentKey(candidate.startMillis, candidate.type.name, candidate.clientName) in knownContent
                 ImportCandidate(parsed = candidate, alreadyImported = already, selected = !already)
             }
 
-            _uiState.value = _uiState.value.copy(
-                isScanning = false,
-                hasScanned = true,
-                candidates = candidates,
-            )
-        }
+        _uiState.value = state.copy(
+            candidates = candidates,
+            availableYears = years,
+            selectedYear = year,
+        )
     }
+
+    private fun yearOf(startMillis: Long, zone: ZoneId): Int =
+        Instant.ofEpochMilli(startMillis).atZone(zone).year
 
     /**
      * Removes jobs already saved twice - the state a shared calendar left behind before the scan
