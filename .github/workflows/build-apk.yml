@@ -170,10 +170,17 @@ jobs:
       - name: Compile :shared for iOS Simulator (arm64)
         run: ./gradlew :shared:compileKotlinIosSimulatorArm64 --stacktrace
 
-  # Runs after every platform build has produced its artifact, and does the actual GitHub Release
-  # publishing once - avoids the jobs racing to create/update the same "debug-latest" release.
+  # Runs after the platform builds and does the actual GitHub Release publishing once - avoids the
+  # jobs racing to create/update the same "debug-latest" release.
+  #
+  # Only the Android build is required. The desktop jobs fetch third-party tooling at build time
+  # (WiX for the .msi, the Gradle distribution itself) and those downloads fail often enough that
+  # requiring them held the APK hostage to an unrelated outage - the phone is the primary target and
+  # its build had already succeeded. Whichever installers did build still get attached; the ones
+  # that didn't are simply missing from this release and return on the next green run.
   publish-release:
     needs: [build-android, build-desktop-windows, build-desktop-linux]
+    if: always() && needs.build-android.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -206,6 +213,9 @@ jobs:
       - name: Publish APK + installers as a GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          # A platform whose build failed contributes no file here, and that must not fail the
+          # release - see this job's `if` above.
+          fail_on_unmatched_files: false
           tag_name: debug-latest
           name: "JobClosure debug v${{ steps.version.outputs.version_name }}"
           body: |
