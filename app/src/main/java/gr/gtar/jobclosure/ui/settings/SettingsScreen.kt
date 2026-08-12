@@ -64,6 +64,7 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(
     viewModel: SettingsViewModel,
     onBack: () -> Unit,
+    onImportFromCalendar: () -> Unit,
 ) {
     var homeAddress by remember { mutableStateOf("") }
     var mapsApiKey by remember { mutableStateOf("") }
@@ -142,6 +143,22 @@ fun SettingsScreen(
             UpdateSection(viewModel)
 
             NewDesignSection(viewModel)
+
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Παλιά μυστήρια", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Ψάχνει στο ημερολόγιο του κινητού για γάμους και βαφτίσεις που έχεις " +
+                            "γράψει με το χέρι, και τα προσθέτει σαν δουλειές - μαζί με drone, " +
+                            "τοποθεσία και ώρα.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Button(onClick = onImportFromCalendar, modifier = Modifier.fillMaxWidth()) {
+                        Text("Εισαγωγή από το ημερολόγιο")
+                    }
+                }
+            }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 AutocompleteAddressField(

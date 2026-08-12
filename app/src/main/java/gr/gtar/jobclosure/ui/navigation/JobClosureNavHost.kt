@@ -30,12 +30,17 @@ import gr.gtar.jobclosure.ui.bookinglist.BookingListScreen
 import gr.gtar.jobclosure.ui.bookinglist.BookingListViewModel
 import gr.gtar.jobclosure.ui.bookinglist.NewBookingListScreen
 import gr.gtar.jobclosure.ui.components.NewDesignEasing
+import gr.gtar.jobclosure.ui.importcalendar.CalendarImportScreen
+import gr.gtar.jobclosure.ui.importcalendar.CalendarImportViewModel
 import gr.gtar.jobclosure.ui.settings.NewSettingsScreen
 import gr.gtar.jobclosure.ui.settings.SettingsScreen
 import gr.gtar.jobclosure.ui.settings.SettingsViewModel
+import gr.gtar.jobclosure.ui.theme.AppTheme
+import gr.gtar.jobclosure.ui.theme.AppThemePalettes
 
 private const val ROUTE_LIST = "list"
 private const val ROUTE_SETTINGS = "settings"
+private const val ROUTE_IMPORT_CALENDAR = "import-calendar"
 private const val ARG_BOOKING_ID = "bookingId"
 private const val ROUTE_EDIT = "edit/{$ARG_BOOKING_ID}"
 private const val ROUTE_DETAIL = "detail/{$ARG_BOOKING_ID}"
@@ -181,10 +186,31 @@ fun JobClosureNavHost(app: JobClosureApp) {
                 },
             )
             if (useNewDesign) {
-                NewSettingsScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                NewSettingsScreen(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onImportFromCalendar = { navController.navigate(ROUTE_IMPORT_CALENDAR) },
+                )
             } else {
-                SettingsScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                SettingsScreen(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onImportFromCalendar = { navController.navigate(ROUTE_IMPORT_CALENDAR) },
+                )
             }
+        }
+
+        composable(ROUTE_IMPORT_CALENDAR) {
+            val viewModel: CalendarImportViewModel = viewModel(
+                factory = viewModelFactory {
+                    initializer { CalendarImportViewModel(app, app.bookingRepository) }
+                },
+            )
+            CalendarImportScreen(
+                viewModel = viewModel,
+                palette = AppThemePalettes.getValue(AppTheme.fromKey(settings.themeKey)),
+                onBack = { navController.popBackStack() },
+            )
         }
     }
 }

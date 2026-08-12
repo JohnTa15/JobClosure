@@ -59,6 +59,64 @@ object CalendarHelper {
     }
 
     /**
+     * Every event between [fromMillis] and [toMillis], across all readable calendars - including
+     * ones this app can't write to, since the sacraments being imported were typed by hand into
+     * whatever calendar the user had open at the time.
+     */
+    fun readEvents(context: Context, fromMillis: Long, toMillis: Long): List<CalendarEvent> {
+        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_CALENDAR)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            return emptyList()
+        }
+
+        val projection = arrayOf(
+            CalendarContract.Events._ID,
+            CalendarContract.Events.CALENDAR_ID,
+            CalendarContract.Events.TITLE,
+            CalendarContract.Events.DESCRIPTION,
+            CalendarContract.Events.EVENT_LOCATION,
+            CalendarContract.Events.DTSTART,
+            CalendarContract.Events.DTEND,
+        )
+        val selection = "${CalendarContract.Events.DTSTART} >= ? AND ${CalendarContract.Events.DTSTART} <= ? " +
+            "AND ${CalendarContract.Events.DELETED} = 0"
+        val selectionArgs = arrayOf(fromMillis.toString(), toMillis.toString())
+
+        val result = mutableListOf<CalendarEvent>()
+        context.contentResolver.query(
+            CalendarContract.Events.CONTENT_URI,
+            projection,
+            selection,
+            selectionArgs,
+            "${CalendarContract.Events.DTSTART} ASC",
+        )?.use { cursor ->
+            val idIdx = cursor.getColumnIndexOrThrow(CalendarContract.Events._ID)
+            val calendarIdIdx = cursor.getColumnIndexOrThrow(CalendarContract.Events.CALENDAR_ID)
+            val titleIdx = cursor.getColumnIndexOrThrow(CalendarContract.Events.TITLE)
+            val descriptionIdx = cursor.getColumnIndexOrThrow(CalendarContract.Events.DESCRIPTION)
+            val locationIdx = cursor.getColumnIndexOrThrow(CalendarContract.Events.EVENT_LOCATION)
+            val startIdx = cursor.getColumnIndexOrThrow(CalendarContract.Events.DTSTART)
+            val endIdx = cursor.getColumnIndexOrThrow(CalendarContract.Events.DTEND)
+            while (cursor.moveToNext()) {
+                val start = cursor.getLong(startIdx)
+                // Recurring events store no DTEND; an hour is the app's own default ceremony length.
+                val end = if (cursor.isNull(endIdx)) start + 60 * 60 * 1000L else cursor.getLong(endIdx)
+                result += CalendarEvent(
+                    id = cursor.getLong(idIdx),
+                    calendarId = cursor.getLong(calendarIdIdx),
+                    title = cursor.getString(titleIdx) ?: "",
+                    description = cursor.getString(descriptionIdx) ?: "",
+                    location = cursor.getString(locationIdx) ?: "",
+                    startMillis = start,
+                    endMillis = end,
+                )
+            }
+        }
+        return result
+    }
+
+    /**
      * Inserts an event with a single ALERT reminder [reminderMinutesBefore] minutes before start.
      * Returns the new event's id, or null if calendar permissions are missing or the insert failed.
      */
