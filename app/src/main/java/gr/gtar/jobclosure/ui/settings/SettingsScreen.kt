@@ -144,6 +144,8 @@ fun SettingsScreen(
 
             NewDesignSection(viewModel)
 
+            ClassicCrashReportSection(viewModel)
+
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Παλιά μυστήρια", style = MaterialTheme.typography.titleMedium)
@@ -334,6 +336,38 @@ fun SettingsScreen(
 /** Turns on the restyled UI (colour themes + animations from design_handoff_theme_switcher) -
  *  off by default so nothing changes until the user opts in; the new design's own Settings screen
  *  has the same switch so it's just as easy to turn back off again. */
+/** Hidden until something has actually crashed, so the normal case adds no clutter. */
+@Composable
+private fun ClassicCrashReportSection(viewModel: SettingsViewModel) {
+    val reports by viewModel.crashReports.collectAsState()
+    val status by viewModel.crashSendStatus.collectAsState()
+
+    LaunchedEffect(Unit) { viewModel.refreshCrashReports() }
+    if (reports.isEmpty()) return
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Αναφορές σφαλμάτων", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "${reports.size} καταγεγραμμένα - τελευταίο: ${reports.first().summary}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            status?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall)
+            }
+            Row {
+                TextButton(onClick = { viewModel.sendLatestCrashReport() }) {
+                    Text("Αποστολή στο GitHub")
+                }
+                TextButton(onClick = { viewModel.clearCrashReports() }) {
+                    Text("Διαγραφή")
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun NewDesignSection(viewModel: SettingsViewModel) {
     val settings by viewModel.settings.collectAsState()

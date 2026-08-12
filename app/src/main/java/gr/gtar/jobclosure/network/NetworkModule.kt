@@ -1,6 +1,7 @@
 package gr.gtar.jobclosure.network
 
 import com.squareup.moshi.Moshi
+import gr.gtar.jobclosure.crash.CrashReportSender
 import gr.gtar.jobclosure.update.UpdateRepository
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -72,6 +73,7 @@ object NetworkModule {
     val placesApi: PlacesApi by lazy { placesRetrofit.create(PlacesApi::class.java) }
     val openMeteoApi: OpenMeteoApi by lazy { openMeteoRetrofit.create(OpenMeteoApi::class.java) }
     val gitHubReleaseApi: GitHubReleaseApi by lazy { gitHubRetrofit.create(GitHubReleaseApi::class.java) }
+    val gitHubIssuesApi: GitHubIssuesApi by lazy { gitHubRetrofit.create(GitHubIssuesApi::class.java) }
     val nominatimApi: NominatimApi by lazy { nominatimRetrofit.create(NominatimApi::class.java) }
     val osrmApi: OsrmApi by lazy { osrmRetrofit.create(OsrmApi::class.java) }
 
@@ -83,4 +85,5 @@ object NetworkModule {
     }
     val placeSearchRepository: PlaceSearchRepository by lazy { PlaceSearchRepository(nominatimApi, placesApi) }
     val updateRepository: UpdateRepository by lazy { UpdateRepository(gitHubReleaseApi) }
+    val crashReportSender: CrashReportSender by lazy { CrashReportSender(gitHubIssuesApi) }
 }

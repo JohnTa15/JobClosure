@@ -181,7 +181,13 @@ fun JobClosureNavHost(app: JobClosureApp) {
             val viewModel: SettingsViewModel = viewModel(
                 factory = viewModelFactory {
                     initializer {
-                        SettingsViewModel(app.settingsRepository, app.updateRepository, app.placeSearchRepository)
+                        SettingsViewModel(
+                            app,
+                            app.settingsRepository,
+                            app.updateRepository,
+                            app.crashReportSender,
+                            app.placeSearchRepository,
+                        )
                     }
                 },
             )

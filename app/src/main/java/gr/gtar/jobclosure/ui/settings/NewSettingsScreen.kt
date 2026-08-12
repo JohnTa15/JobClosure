@@ -27,6 +27,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.EventRepeat
@@ -85,6 +86,10 @@ import gr.gtar.jobclosure.update.DownloadResult
 import gr.gtar.jobclosure.update.UpdateCheckResult
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+private val crashTimestampFormatter = java.time.format.DateTimeFormatter
+    .ofPattern("d MMM yyyy, HH:mm", java.util.Locale("el", "GR"))
+    .withZone(java.time.ZoneId.systemDefault())
 
 /** Restyled settings screen - see design_handoff_theme_switcher/README.md "Screen 4". Also hosts
  *  the "Νέα εμφάνιση" switch itself, so it's reachable from either UI to turn the restyle off again. */
@@ -311,6 +316,8 @@ fun NewSettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onImport
                     )
                 }
 
+                CrashReportSection(viewModel = viewModel, palette = palette)
+
                 val updateStatusForToken by viewModel.updateStatus.collectAsState()
                 Column {
                     SettingsField(
@@ -376,6 +383,63 @@ fun NewSettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onImport
 
     if (showChangelogHistory) {
         ChangelogDialog(entries = CHANGELOG_HISTORY, onDismiss = { showChangelogHistory = false }, title = "Ιστορικό ενημερώσεων")
+    }
+}
+
+/** Only appears once something has actually crashed - an empty "no crashes" box every time the
+ *  settings are opened would be noise for a state that is normal. */
+@Composable
+private fun CrashReportSection(viewModel: SettingsViewModel, palette: gr.gtar.jobclosure.ui.theme.AccentPalette) {
+    val reports by viewModel.crashReports.collectAsState()
+    val status by viewModel.crashSendStatus.collectAsState()
+
+    LaunchedEffect(Unit) { viewModel.refreshCrashReports() }
+    if (reports.isEmpty()) return
+
+    val latest = reports.first()
+    Column {
+        NewSectionLabel(text = "Αναφορές σφαλμάτων", modifier = Modifier.padding(bottom = 7.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color(0x73232532))
+                .border(1.dp, NewUiColors.outlineSoft, RoundedCornerShape(16.dp))
+                .padding(14.dp),
+        ) {
+            Text(
+                "${reports.size} καταγεγραμμένα - τελευταίο:",
+                color = NewUiColors.onGroundMuted,
+                fontSize = 12.sp,
+            )
+            Text(
+                latest.summary,
+                color = NewUiColors.onGround,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            Text(
+                crashTimestampFormatter.format(latest.timestamp),
+                color = NewUiColors.onGroundFaint,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+
+            status?.let {
+                Text(it, color = NewUiColors.onGroundMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
+            }
+
+            Row(modifier = Modifier.padding(top = 10.dp)) {
+                TextButton(onClick = { viewModel.sendLatestCrashReport() }) {
+                    Icon(Icons.Filled.BugReport, contentDescription = null, tint = palette.accent, modifier = Modifier.size(15.dp))
+                    Text("  Αποστολή στο GitHub", color = palette.accent, fontSize = 12.sp)
+                }
+                TextButton(onClick = { viewModel.clearCrashReports() }) {
+                    Text("Διαγραφή", color = NewUiColors.onGroundFaint, fontSize = 12.sp)
+                }
+            }
+        }
     }
 }
 
