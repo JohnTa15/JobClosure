@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.FlightTakeoff
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Search
@@ -54,7 +55,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-private val importDateFormatter = DateTimeFormatter.ofPattern("d MMM yyyy, HH:mm", Locale("el", "GR"))
+private val importDateFormatter = DateTimeFormatter.ofPattern("EEE d MMM yyyy, HH:mm", Locale("el", "GR"))
 
 /**
  * Reviews what the parser found in the device calendar before anything is written. Importing
@@ -101,6 +102,22 @@ fun CalendarImportScreen(
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.weight(1f).padding(start = 12.dp),
                 )
+            }
+
+            // Kept outside the result list: duplicates left over from an earlier import still need
+            // clearing even when this scan turns up nothing new to add.
+            Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+                TextButton(onClick = { viewModel.removeDuplicateBookings() }) {
+                    Icon(Icons.Filled.CleaningServices, contentDescription = null, tint = palette.accent, modifier = Modifier.size(15.dp))
+                    Text("  Καθαρισμός διπλών δουλειών", color = palette.accent, fontSize = 12.sp)
+                }
+                state.duplicatesRemoved?.let { count ->
+                    Text(
+                        if (count == 0) "Δεν βρέθηκαν διπλές δουλειές." else "Διαγράφηκαν $count διπλές δουλειές.",
+                        color = NewUiColors.success,
+                        fontSize = 11.sp,
+                    )
+                }
             }
 
             when {

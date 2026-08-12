@@ -34,10 +34,11 @@ object CalendarBookingParser {
     /** Anywhere in the event's text, not just the title - "drone" is as likely to be a note. */
     private const val DRONE_MARKER = "drone"
 
-    // Longest first, so "γάμου" matches the whole word rather than stopping at the "γάμο" prefix
-    // and leaving a stray letter at the head of the client name.
-    private val weddingWords = listOf("γαμος", "γαμου", "γαμο").sortedByDescending { it.length }
-    private val baptismWords = listOf("βαπτιση", "βαφτιση", "βαπτισι", "βαφτισι").sortedByDescending { it.length }
+    // Stems rather than whole words, because the case endings vary freely in a hand-typed title
+    // ("Γάμος", "Γάμου", "Γάμο", "Γάμων", "Βαπτίσεις") and every one of those is the same job.
+    // Στεφάνωμα is included as the other common word for a wedding.
+    private val weddingStems = listOf("γαμ", "στεφανωμ")
+    private val baptismStems = listOf("βαπτ", "βαφτ")
 
     /** Strips accents and lowercases, so "Βάπτιση" and "ΒΑΠΤΙΣΗ" compare equal. Greek final sigma
      *  is folded too, otherwise "γάμος" would not match a stem written "γάμοσ". */
@@ -58,11 +59,14 @@ object CalendarBookingParser {
         val foldedTitle = fold(rawTitle)
         if (foldedTitle.isBlank()) return null
 
-        val matchedWord = (weddingWords + baptismWords).firstOrNull { foldedTitle.startsWith(it) }
-            ?: return null
+        // Matched anywhere in the title, not just at the start: plenty of entries read
+        // "Παπαδόπουλος - γάμος" or "Αγ. Νικόλαος βάπτιση". Being permissive is cheap here because
+        // nothing is imported without passing through the review list first, where a false positive
+        // costs one untick - whereas a missed sacrament is invisible and stays missed.
+        val mentionsWedding = weddingStems.any { foldedTitle.contains(it) }
+        val mentionsBaptism = baptismStems.any { foldedTitle.contains(it) }
+        if (!mentionsWedding && !mentionsBaptism) return null
 
-        val mentionsWedding = weddingWords.any { foldedTitle.contains(it) }
-        val mentionsBaptism = baptismWords.any { foldedTitle.contains(it) }
         val type = when {
             mentionsWedding && mentionsBaptism -> BookingType.WEDDING_AND_BAPTISM
             mentionsBaptism -> BookingType.BAPTISM
@@ -84,7 +88,7 @@ object CalendarBookingParser {
             title = rawTitle,
             type = type,
             hasDrone = hasDrone,
-            clientName = clientNameFrom(rawTitle, matchedWord),
+            clientName = clientNameFrom(rawTitle),
             venueName = event.location.substringBefore(",").trim(),
             venueAddress = event.location.trim(),
             startMillis = event.startMillis,
@@ -94,33 +98,29 @@ object CalendarBookingParser {
     }
 
     /**
-     * Everything after the sacrament word is the client: "Γάμος Παπαδόπουλου - drone" leaves
-     * "Παπαδόπουλου". Falls back to the whole title when that leaves nothing usable, so an event
-     * titled just "Γάμος" still imports with something readable in the client field.
+     * The client is whatever the title says once the sacrament words, the drone marker and any
+     * leftover separators are taken out: "Γάμος Παπαδόπουλου - drone" and "Παπαδόπουλου (γάμος)"
+     * both leave "Παπαδόπουλου". Falls back to the whole title when that empties it, so an event
+     * titled just "Γάμος" still lands with something readable in the client field.
      */
-    private fun clientNameFrom(rawTitle: String, matchedWord: String): String {
-        // The folded and raw titles line up character-for-character (folding only drops combining
-        // marks and changes case), so the match length is a safe offset into the original.
-        val remainder = rawTitle.drop(matchedWord.length)
-            .trim()
-            .trimStart('&', '-', '–', ':', ',', '/')
-            .let { stripSecondSacramentWord(it) }
-            .trim()
-            .trimStart('&', '-', '–', ':', ',', '/')
-            .trim()
-        val withoutDrone = remainder
-            .replace(Regex("(?i)\\bdrone\\b"), "")
-            .trim()
-            .trim('-', '–', ':', ',', '/', '(', ')')
-            .trim()
-        return withoutDrone.ifBlank { rawTitle.trim() }
-    }
+    private fun clientNameFrom(rawTitle: String): String {
+        // Words are dropped whole rather than by character offset: a stem can sit anywhere in the
+        // title now, and cutting at a stem's length would leave its ending behind ("ς" from "γάμος").
+        val kept = rawTitle
+            .split(' ', '\t')
+            .filter { word ->
+                val folded = fold(word)
+                folded.isNotBlank() &&
+                    (weddingStems + baptismStems).none { folded.contains(it) } &&
+                    !folded.contains(DRONE_MARKER)
+            }
+            .joinToString(" ")
 
-    /** "Γάμος & Βάπτιση Ελένης" should yield "Ελένης", not "Βάπτιση Ελένης". */
-    private fun stripSecondSacramentWord(text: String): String {
-        val folded = fold(text)
-        val second = (weddingWords + baptismWords).firstOrNull { folded.startsWith(it) } ?: return text
-        return text.drop(second.length)
+        val cleaned = kept
+            .trim()
+            .trim('&', '-', '–', ':', ',', '/', '(', ')', '.')
+            .trim()
+        return cleaned.ifBlank { rawTitle.trim() }
     }
 
     private const val MIN_DURATION_MINUTES = 15

@@ -74,7 +74,38 @@ import java.util.Locale
 
 private val newMonthYearFormatter = DateTimeFormatter.ofPattern("MMMM yyyy", Locale("el", "GR"))
 private val newDayHeaderFormatter = DateTimeFormatter.ofPattern("EEE d MMMM", Locale("el", "GR"))
+private val newDayHeaderWithYearFormatter = DateTimeFormatter.ofPattern("EEE d MMMM yyyy", Locale("el", "GR"))
 private val newTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+
+/** "ΑΥΓΟΥΣΤΟΣ 2026" while everything sits in one month, "2016 - 2026" once it doesn't. */
+private fun listSpanLabel(bookings: List<gr.gtar.jobclosure.data.Booking>): String {
+    val dates = bookings.map { it.ceremonyStart.toLocalDate() }
+    val first = dates.minOrNull() ?: return java.time.LocalDate.now().format(newMonthYearFormatter)
+    val last = dates.maxOrNull() ?: first
+    return if (first.year == last.year && first.month == last.month) {
+        first.format(newMonthYearFormatter)
+    } else if (first.year == last.year) {
+        first.year.toString()
+    } else {
+        "${first.year} - ${last.year}"
+    }
+}
+
+/**
+ * Day headers carry the year for anything outside the current one. Once a decade of past jobs has
+ * been imported the list spans many years, and "ΤΡΙ 7 ΑΥΓΟΥΣΤΟΥ" on its own could be any of them.
+ * Today and tomorrow are named instead, since those are the two the user is actually working from.
+ */
+private fun dayHeaderLabel(date: java.time.LocalDate): String {
+    val today = java.time.LocalDate.now()
+    val formatter = if (date.year == today.year) newDayHeaderFormatter else newDayHeaderWithYearFormatter
+    val formatted = date.format(formatter).uppercase(Locale("el", "GR"))
+    return when (date) {
+        today -> "ΣΗΜΕΡΑ · $formatted"
+        today.plusDays(1) -> "ΑΥΡΙΟ · $formatted"
+        else -> formatted
+    }
+}
 
 /** Restyled booking list - see design_handoff_theme_switcher/README.md "Screen 1". */
 @Composable
@@ -102,7 +133,9 @@ fun NewBookingListScreen(
             Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
-                        NewSectionLabel(text = java.time.LocalDate.now().format(newMonthYearFormatter))
+                        // The span of what's actually listed, rather than today's month - after an
+                        // import the list is mostly history and today's month says nothing about it.
+                        NewSectionLabel(text = listSpanLabel(bookings))
                         Text(
                             "Δουλειές",
                             color = NewUiColors.onGround,
@@ -169,7 +202,7 @@ fun NewBookingListScreen(
                     var runningIndex = 0
                     grouped.forEach { (date, dayBookings) ->
                         item(key = "header-$date") {
-                            DayHeader(date.format(newDayHeaderFormatter).uppercase(Locale("el", "GR")), palette.accent, palette.accentDim)
+                            DayHeader(dayHeaderLabel(date), palette.accent, palette.accentDim)
                         }
                         items(dayBookings, key = { it.id }) { booking ->
                             val index = runningIndex++

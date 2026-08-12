@@ -32,6 +32,7 @@ data class CalendarImportUiState(
     val hasScanned: Boolean = false,
     val candidates: List<ImportCandidate> = emptyList(),
     val importedCount: Int? = null,
+    val duplicatesRemoved: Int? = null,
     val missingPermission: Boolean = false,
 ) {
     val selectableCount: Int get() = candidates.count { !it.alreadyImported }
@@ -39,7 +40,21 @@ data class CalendarImportUiState(
 }
 
 /** How far back to look. Sacraments booked years ago are exactly the point of this screen. */
-private const val YEARS_BACK = 10L
+private const val YEARS_BACK = 15L
+
+/**
+ * Identifies a job by what it is rather than which calendar entry produced it: same minute, same
+ * type, same client. Case and accents are folded out because the two copies of a shared calendar
+ * are often typed by different people.
+ */
+private fun contentKey(startMillis: Long, typeName: String, client: String): String {
+    val folded = java.text.Normalizer.normalize(client.trim(), java.text.Normalizer.Form.NFD)
+        .replace(Regex("\\p{Mn}+"), "")
+        .lowercase(java.util.Locale("el", "GR"))
+        .replace('ς', 'σ')
+        .replace(Regex("\\s+"), " ")
+    return "${startMillis / 60_000L}|$typeName|$folded"
+}
 
 class CalendarImportViewModel(
     application: Application,
@@ -65,16 +80,27 @@ class CalendarImportViewModel(
             val to = now.plusYears(1).atZone(zone).toInstant().toEpochMilli()
 
             val parsed = withContext(Dispatchers.IO) {
-                CalendarHelper.readEvents(context, from, to).mapNotNull(CalendarBookingParser::parse)
+                CalendarHelper.readEvents(context, from, to)
+                    .mapNotNull(CalendarBookingParser::parse)
+                    // A calendar shared with someone else delivers the same sacrament twice, once
+                    // per calendar, with different event ids but identical content. Offering both
+                    // would import the job twice.
+                    .distinctBy { contentKey(it.startMillis, it.type.name, it.clientName) }
             }
 
             // Two ways an event can already be in the app: it was imported before (so its calendar
             // event id is on a booking), or the app itself created it (same id, other direction).
             val existing = bookingRepository.observeAll().first()
             val knownEventIds = existing.flatMap { listOfNotNull(it.churchCalendarEventId, it.receptionCalendarEventId) }.toSet()
+            // Matching on content as well as event id: the same sacrament imported from the other
+            // copy of a shared calendar carries a different event id but is still the same job.
+            val knownContent = existing.map {
+                contentKey(Booking.epochMinute(it.ceremonyStart) * 60_000L, it.type.name, it.title)
+            }.toSet()
 
             val candidates = parsed.map { candidate ->
-                val already = candidate.calendarEventId in knownEventIds
+                val already = candidate.calendarEventId in knownEventIds ||
+                    contentKey(candidate.startMillis, candidate.type.name, candidate.clientName) in knownContent
                 ImportCandidate(parsed = candidate, alreadyImported = already, selected = !already)
             }
 
@@ -83,6 +109,27 @@ class CalendarImportViewModel(
                 hasScanned = true,
                 candidates = candidates,
             )
+        }
+    }
+
+    /**
+     * Removes jobs already saved twice - the state a shared calendar left behind before the scan
+     * learned to collapse them. Two bookings count as the same when their ceremony minute, type and
+     * client all match; the oldest row of each group is kept, since anything the user has since
+     * edited (price, notes, reception) is most likely on the one that has been around longest.
+     */
+    fun removeDuplicateBookings() {
+        viewModelScope.launch {
+            val all = bookingRepository.observeAll().first()
+            val removed = all
+                .groupBy { contentKey(Booking.epochMinute(it.ceremonyStart) * 60_000L, it.type.name, it.title) }
+                .values
+                .filter { it.size > 1 }
+                .flatMap { group -> group.sortedBy { it.id }.drop(1) }
+
+            removed.forEach { bookingRepository.delete(it) }
+            _uiState.value = _uiState.value.copy(duplicatesRemoved = removed.size)
+            if (_uiState.value.hasScanned) scan()
         }
     }
 
