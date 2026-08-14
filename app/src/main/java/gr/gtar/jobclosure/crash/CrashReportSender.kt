@@ -57,8 +57,12 @@ class CrashReportSender(private val api: GitHubIssuesApi) {
                 CrashSendResult.Failed(
                     when (e.code()) {
                         401 -> "Το GitHub token απορρίφθηκε - έλεγξέ το στις Ρυθμίσεις."
-                        403, 404 -> "Το GitHub token δεν έχει δικαίωμα να ανοίγει issues. " +
-                            "Χρειάζεται 'Issues: Read and write' για αυτό το repository."
+                        // GitHub answers a repo with the Issues tab switched off with 410, and 404
+                        // covers both "no permission" and "issues disabled" depending on the token,
+                        // so the two causes are named together rather than guessing between them.
+                        403, 404, 410 -> "Δεν ήταν δυνατό να ανοιχτεί issue. Έλεγξε ότι τα Issues " +
+                            "είναι ενεργά στο repository (Settings → General → Features → Issues) " +
+                            "και ότι το token έχει 'Issues: Read and write'."
                         else -> "Αποτυχία αποστολής: HTTP ${e.code()}"
                     },
                 )

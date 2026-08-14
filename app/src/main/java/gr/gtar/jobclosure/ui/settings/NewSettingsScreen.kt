@@ -327,6 +327,13 @@ fun NewSettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onImport
                         leadingIcon = Icons.Filled.Key,
                         accent = palette.accent,
                     )
+                    Text(
+                        "Δεν χρειάζεται πλέον για τις ενημερώσεις - το repository είναι public. " +
+                            "Βάλε ένα μόνο αν θέλεις να στέλνονται οι αναφορές σφαλμάτων σαν issues.",
+                        color = NewUiColors.onGroundFaint,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
                     if (settings.gitHubToken.isNotBlank()) {
                         val (message, color) = when (updateStatusForToken) {
                             is UpdateCheckResult.UpdateAvailable, UpdateCheckResult.UpToDate ->
