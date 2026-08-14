@@ -40,7 +40,7 @@ class GoogleAuthManager(private val tokenService: GoogleOAuthTokenService) {
                 codeDeferred.complete(code)
                 SUCCESS_HTML
             } else {
-                codeDeferred.completeExceptionally(IllegalStateException(params["error"] ?: "Άγνωστο σφάλμα σύνδεσης"))
+                codeDeferred.completeExceptionally(IllegalStateException(describeAuthError(params["error"])))
                 ERROR_HTML
             }
             val bytes = responseHtml.toByteArray(Charsets.UTF_8)
@@ -85,6 +85,25 @@ class GoogleAuthManager(private val tokenService: GoogleOAuthTokenService) {
         } finally {
             server.stop(0)
         }
+    }
+
+    /**
+     * Google reports these as bare codes in the redirect, and "access_denied" in particular is far
+     * more often a consent screen still in Testing without this account listed as a tester than an
+     * actual refusal - a distinction worth spelling out, since the two need opposite fixes.
+     */
+    private fun describeAuthError(code: String?): String = when (code) {
+        "access_denied" ->
+            "Η Google απέρριψε τη σύνδεση. Αν η εφαρμογή είναι σε κατάσταση Testing, πρόσθεσε " +
+                "τον λογαριασμό σου στους Test users - ή δημοσίευσε την (Publish app), που " +
+                "σταματά και τη λήξη της σύνδεσης κάθε 7 ημέρες."
+        "admin_policy_enforced" ->
+            "Ο διαχειριστής του λογαριασμού Google μπλοκάρει την πρόσβαση σε αυτή την εφαρμογή."
+        "redirect_uri_mismatch" ->
+            "Το OAuth client πρέπει να είναι τύπου \"Desktop app\" - ένα \"Web application\" " +
+                "client δεν δέχεται τη διεύθυνση επιστροφής που χρησιμοποιεί η εφαρμογή."
+        null -> "Άγνωστο σφάλμα σύνδεσης"
+        else -> "Σφάλμα σύνδεσης από τη Google: $code"
     }
 
     /** Returns a fresh access token, refreshing it via the stored refresh token. */

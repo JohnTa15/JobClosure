@@ -37,6 +37,10 @@ data class AppUiState(
     val calendars: kotlin.collections.List<GCalCalendarListEntry> = emptyList(),
     val bookings: kotlin.collections.List<Booking> = emptyList(),
     val screen: Screen = Screen.SignIn,
+    /** What the spinner is currently waiting on. A bare spinner cannot distinguish "talking to
+     *  Google" from "waiting for you to finish in the browser", and sign-in can sit on the latter
+     *  for minutes - long enough to look like the app has hung. */
+    val statusMessage: String? = null,
     val errorMessage: String? = null,
     val pendingConflicts: kotlin.collections.List<Booking> = emptyList(),
     val pendingSave: Booking? = null,
@@ -100,9 +104,17 @@ class AppViewModel(private val scope: CoroutineScope) {
             return
         }
         scope.launch {
-            _state.update { it.copy(isLoading = true, errorMessage = null) }
+            _state.update {
+                it.copy(
+                    isLoading = true,
+                    errorMessage = null,
+                    statusMessage = "Άνοιξε το πρόγραμμα περιήγησης - ολοκλήρωσε εκεί τη σύνδεση " +
+                        "με τον λογαριασμό Google. Η αναμονή λήγει σε 3 λεπτά.",
+                )
+            }
             runCatching { authManager.signIn(clientId, clientSecret) }
                 .onSuccess { token ->
+                    _state.update { it.copy(statusMessage = "Φόρτωση ημερολογίων...") }
                     cachedAccessToken = token.access_token
                     cachedAccessTokenExpiry = Instant.now().plusSeconds((token.expires_in - 60).toLong().coerceAtLeast(30))
                     currentSettings = currentSettings.copy(
@@ -114,7 +126,13 @@ class AppViewModel(private val scope: CoroutineScope) {
                     loadCalendars()
                 }
                 .onFailure { error ->
-                    _state.update { it.copy(isLoading = false, errorMessage = "Η σύνδεση απέτυχε: ${error.message}") }
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            statusMessage = null,
+                            errorMessage = "Η σύνδεση απέτυχε: ${error.message}",
+                        )
+                    }
                 }
         }
     }
@@ -123,10 +141,23 @@ class AppViewModel(private val scope: CoroutineScope) {
         scope.launch {
             runCatching { repository.listWritableCalendars() }
                 .onSuccess { calendars ->
-                    _state.update { it.copy(isLoading = false, calendars = calendars, settings = currentSettings) }
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            statusMessage = null,
+                            calendars = calendars,
+                            settings = currentSettings,
+                        )
+                    }
                 }
                 .onFailure { error ->
-                    _state.update { it.copy(isLoading = false, errorMessage = "Αποτυχία φόρτωσης ημερολογίων: ${error.message}") }
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            statusMessage = null,
+                            errorMessage = "Αποτυχία φόρτωσης ημερολογίων: ${error.message}",
+                        )
+                    }
                 }
         }
     }
