@@ -66,6 +66,19 @@ fun SignInScreen(
 
                 if (state.calendars.isEmpty()) {
                     if (needsManualCredentials) {
+                        // Stated up front because getting it wrong fails late and unhelpfully: a Web
+                        // client sends the user all the way to Google's consent page only to be
+                        // refused with "Error 400: redirect_uri_mismatch". Sign-in here lands on
+                        // http://127.0.0.1 with a port chosen at runtime, and only Desktop clients
+                        // accept an arbitrary loopback port - a Web client would need that exact
+                        // port registered in advance, which is impossible.
+                        Text(
+                            "Ο τύπος του OAuth client πρέπει να είναι \"Desktop app\". Ένα " +
+                                "\"Web application\" client απορρίπτει τη σύνδεση με σφάλμα " +
+                                "redirect_uri_mismatch.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                         OutlinedTextField(
                             value = clientId,
                             onValueChange = { clientId = it },
