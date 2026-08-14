@@ -20,12 +20,14 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
@@ -36,6 +38,7 @@ import gr.gtar.jobclosure.desktop.ui.BookingListScreen
 import gr.gtar.jobclosure.desktop.ui.DesktopSettingsScreen
 import gr.gtar.jobclosure.desktop.ui.Screen
 import gr.gtar.jobclosure.desktop.ui.SignInScreen
+import gr.gtar.jobclosure.desktop.ui.theme.NewUiColors
 import gr.gtar.jobclosure.desktop.update.UpdateCheckResult
 import gr.gtar.jobclosure.desktop.util.openInBrowser
 import kotlinx.coroutines.CoroutineScope
@@ -47,6 +50,22 @@ fun main() = application {
     val viewModel = remember { AppViewModel(scope) }
     val state by viewModel.state.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // The restyled UI is dark-only (see NewUiColors) - give Material3's own components (dialogs,
+    // snackbars, menus) a matching dark scheme so nothing white flashes around them.
+    val darkColors = darkColorScheme(
+        primary = NewUiColors.onGroundMuted,
+        onPrimary = NewUiColors.ground,
+        background = NewUiColors.ground,
+        onBackground = NewUiColors.onGround,
+        surface = NewUiColors.surface,
+        onSurface = NewUiColors.onGround,
+        surfaceVariant = NewUiColors.surfaceLow,
+        onSurfaceVariant = NewUiColors.onGroundMuted,
+        outline = NewUiColors.outline,
+        error = Color(0xFFFF6B6B),
+        onError = NewUiColors.ground,
+    )
 
     LaunchedEffect(state.errorMessage) {
         state.errorMessage?.let {
@@ -77,7 +96,7 @@ fun main() = application {
         title = "JobClosure",
         state = rememberWindowState(width = 960.dp, height = 720.dp),
     ) {
-        MaterialTheme {
+        MaterialTheme(colorScheme = darkColors) {
             Surface(modifier = Modifier) {
                 when (val screen = state.screen) {
                     is Screen.SignIn -> SignInScreen(
@@ -93,9 +112,15 @@ fun main() = application {
                         onAddBooking = { viewModel.startNewBooking() },
                         onOpenBooking = { viewModel.startEditBooking(it) },
                         onOpenSettings = { viewModel.openSettings() },
+                        onSetFilter = { viewModel.setFilter(it) },
+                        onSetThemeKey = { viewModel.setThemeKey(it) },
+                        onRequestDelete = { viewModel.requestDelete(it) },
+                        onDismissDeleteRequest = { viewModel.dismissDeleteRequest() },
+                        onConfirmDelete = { viewModel.confirmDelete() },
                     )
                     is Screen.Settings -> DesktopSettingsScreen(
                         state = state,
+                        onSetThemeKey = { viewModel.setThemeKey(it) },
                         onSaveGitHubToken = { viewModel.setGitHubToken(it) },
                         onSaveDronePartnerEmail = { viewModel.setDronePartnerEmail(it) },
                         onCheckForUpdate = { viewModel.checkForUpdate() },
@@ -106,6 +131,7 @@ fun main() = application {
                         booking = screen.booking,
                         isNew = screen.isNew,
                         conflicts = state.pendingConflicts,
+                        themeKey = state.settings.themeKey,
                         onSave = { booking, ignoreConflicts -> viewModel.saveBooking(booking, ignoreConflicts) },
                         onDismissConflicts = { viewModel.dismissConflicts() },
                         onDelete = { viewModel.deleteBooking(it) },

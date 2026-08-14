@@ -19,6 +19,9 @@ data class DesktopSettings(
     // Only needed while the JobClosure repo stays private - lets the update check authenticate
     // the same way the Android app's does. Not needed at all once/if the repo goes public.
     val gitHubToken: String = "",
+    // Colour theme of the restyled UI - one of AppTheme's keys (see DesktopTheme.kt). Persisted
+    // here so the theme picker on the list/settings screens survives restarts.
+    val themeKey: String = "nocturne",
 )
 
 object DesktopSettingsStore {
@@ -37,6 +40,7 @@ object DesktopSettingsStore {
             dronePartnerEmail = props.getProperty("dronePartnerEmail", ""),
             changelogLastSeenId = props.getProperty("changelogLastSeenId", "0").toIntOrNull() ?: 0,
             gitHubToken = props.getProperty("gitHubToken", ""),
+            themeKey = props.getProperty("themeKey", "nocturne"),
         )
     }
 
@@ -50,6 +54,7 @@ object DesktopSettingsStore {
         props.setProperty("dronePartnerEmail", settings.dronePartnerEmail)
         props.setProperty("changelogLastSeenId", settings.changelogLastSeenId.toString())
         props.setProperty("gitHubToken", settings.gitHubToken)
+        props.setProperty("themeKey", settings.themeKey)
         configFile.outputStream().use { props.store(it, "JobClosure desktop settings") }
     }
 }

@@ -31,6 +31,13 @@ sealed interface Screen {
     data object Settings : Screen
 }
 
+enum class BookingFilter(val label: String) {
+    ALL("Όλα"),
+    WEDDING_BAPTISM("Γάμοι/Βαφτίσεις"),
+    DRONE("Με Drone"),
+    RECEPTION("Με Δεξίωση"),
+}
+
 data class AppUiState(
     val isLoading: Boolean = true,
     val settings: DesktopSettings = DesktopSettings(),
@@ -48,7 +55,18 @@ data class AppUiState(
     val isShowingChangelogHistory: Boolean = false,
     val updateCheckResult: UpdateCheckResult? = null,
     val isCheckingForUpdate: Boolean = false,
-)
+    val filter: BookingFilter = BookingFilter.ALL,
+    val pendingDelete: Booking? = null,
+) {
+    /** [bookings] narrowed down by the active list filter chip. */
+    val filteredBookings: kotlin.collections.List<Booking>
+        get() = when (filter) {
+            BookingFilter.ALL -> bookings
+            BookingFilter.WEDDING_BAPTISM -> bookings.filter { it.type.isChurchSacrament }
+            BookingFilter.DRONE -> bookings.filter { it.hasDrone }
+            BookingFilter.RECEPTION -> bookings.filter { it.hasReception }
+        }
+}
 
 /**
  * Holds all desktop app state and talks to Google Calendar through the shared [GoogleCalendarRepository] -
@@ -257,6 +275,30 @@ class AppViewModel(private val scope: CoroutineScope) {
         currentSettings = currentSettings.copy(gitHubToken = token)
         DesktopSettingsStore.save(currentSettings)
         _state.update { it.copy(settings = currentSettings) }
+    }
+
+    fun setThemeKey(key: String) {
+        currentSettings = currentSettings.copy(themeKey = key)
+        DesktopSettingsStore.save(currentSettings)
+        _state.update { it.copy(settings = currentSettings) }
+    }
+
+    fun setFilter(filter: BookingFilter) {
+        _state.update { it.copy(filter = filter) }
+    }
+
+    fun requestDelete(booking: Booking) {
+        _state.update { it.copy(pendingDelete = booking) }
+    }
+
+    fun dismissDeleteRequest() {
+        _state.update { it.copy(pendingDelete = null) }
+    }
+
+    fun confirmDelete() {
+        val booking = _state.value.pendingDelete ?: return
+        _state.update { it.copy(pendingDelete = null) }
+        deleteBooking(booking)
     }
 
     fun setDronePartnerEmail(email: String) {
