@@ -17,12 +17,17 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -60,14 +65,20 @@ import gr.gtar.jobclosure.desktop.util.openInBrowser
 fun DesktopSettingsScreen(
     state: AppUiState,
     onSetThemeKey: (String) -> Unit,
-    onSaveGitHubToken: (String) -> Unit,
-    onSaveDronePartnerEmail: (String) -> Unit,
+    onSaveSettings: (gitHubToken: String, dronePartnerEmail: String) -> Unit,
+    onChangeCalendar: () -> Unit,
+    onSignOut: () -> Unit,
     onCheckForUpdate: () -> Unit,
     onShowChangelogHistory: () -> Unit,
     onBack: () -> Unit,
 ) {
-    var gitHubToken by remember(state.settings.gitHubToken) { mutableStateOf(state.settings.gitHubToken) }
-    var dronePartnerEmail by remember(state.settings.dronePartnerEmail) { mutableStateOf(state.settings.dronePartnerEmail) }
+    // Deliberately un-keyed: these hold what the user is typing, and only the explicit save button
+    // below writes them back. Keying them on the stored value would reset the field mid-edit every
+    // time anything else in settings changed.
+    var gitHubToken by remember { mutableStateOf(state.settings.gitHubToken) }
+    var dronePartnerEmail by remember { mutableStateOf(state.settings.dronePartnerEmail) }
+    val isDirty = gitHubToken.trim() != state.settings.gitHubToken ||
+        dronePartnerEmail.trim() != state.settings.dronePartnerEmail
     val activeTheme = AppTheme.fromKey(state.settings.themeKey)
     val palette = AppThemePalettes.getValue(activeTheme)
 
@@ -104,6 +115,13 @@ fun DesktopSettingsScreen(
                     palette = palette,
                 )
 
+                GoogleAccountCard(
+                    state = state,
+                    palette = palette,
+                    onChangeCalendar = onChangeCalendar,
+                    onSignOut = onSignOut,
+                )
+
                 ThemeSection(selected = activeTheme, onSelect = { onSetThemeKey(it.key) })
 
                 Column {
@@ -111,10 +129,7 @@ fun DesktopSettingsScreen(
                     SettingsField(
                         label = "Συνεργάτης drone",
                         value = dronePartnerEmail,
-                        onValueChange = { value ->
-                            dronePartnerEmail = value
-                            onSaveDronePartnerEmail(value)
-                        },
+                        onValueChange = { dronePartnerEmail = it },
                         leadingIcon = Icons.Filled.Person,
                         iconTint = NewUiColors.droneChip,
                         accent = palette.accent,
@@ -132,10 +147,7 @@ fun DesktopSettingsScreen(
                     SettingsField(
                         label = "GitHub token",
                         value = gitHubToken,
-                        onValueChange = { value ->
-                            gitHubToken = value
-                            onSaveGitHubToken(value)
-                        },
+                        onValueChange = { gitHubToken = it },
                         leadingIcon = Icons.Filled.Key,
                         accent = palette.accent,
                     )
@@ -148,6 +160,73 @@ fun DesktopSettingsScreen(
                         modifier = Modifier.padding(top = 6.dp),
                     )
                 }
+
+                AccentButton(
+                    text = if (isDirty) "Αποθήκευση και εφαρμογή" else "Αποθηκευμένο",
+                    onClick = { if (isDirty) onSaveSettings(gitHubToken, dronePartnerEmail) },
+                    icon = if (isDirty) Icons.Filled.Save else Icons.Filled.Check,
+                    borderColor = if (isDirty) palette.accentBorder else NewUiColors.outline,
+                    containerColor = if (isDirty) palette.accentContainer else Color(0x60232532),
+                    contentColor = if (isDirty) palette.onAccentContainer else NewUiColors.onGroundDim,
+                    glowColor = if (isDirty) palette.accentGlow else Color.Transparent,
+                    height = 50.dp,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Which Google account/calendar the app is currently writing through, plus the two ways out of a
+ * session that has stopped working: pick a different calendar, or drop the session and sign in
+ * again. Before this the sign-in screen was reachable only on a fresh install.
+ */
+@Composable
+private fun GoogleAccountCard(
+    state: AppUiState,
+    palette: gr.gtar.jobclosure.desktop.ui.theme.AccentPalette,
+    onChangeCalendar: () -> Unit,
+    onSignOut: () -> Unit,
+) {
+    val calendarLabel = state.calendars.firstOrNull { it.id == state.settings.calendarId }?.summary
+        ?: state.settings.calendarId.ifBlank { "Δεν έχει επιλεγεί ημερολόγιο" }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color(0x73232532))
+            .border(1.dp, NewUiColors.outlineSoft, RoundedCornerShape(18.dp))
+            .padding(16.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.CloudSync, contentDescription = null, tint = palette.accent, modifier = Modifier.size(17.dp))
+            NewSectionLabel(text = "Συγχρονισμός Google", color = palette.accent, modifier = Modifier.padding(start = 8.dp))
+        }
+        Text(
+            calendarLabel,
+            color = NewUiColors.onGround,
+            fontSize = 16.sp,
+            modifier = Modifier.padding(top = 10.dp),
+        )
+        Text(
+            if (state.settings.refreshToken.isBlank()) {
+                "Δεν υπάρχει ενεργή σύνδεση με λογαριασμό Google."
+            } else {
+                "Οι δουλειές γράφονται σε αυτό το ημερολόγιο και εμφανίζονται και στο κινητό."
+            },
+            color = NewUiColors.onGroundFaint,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        Row(modifier = Modifier.padding(top = 12.dp)) {
+            TextButton(onClick = onChangeCalendar) {
+                Icon(Icons.Filled.SwapHoriz, contentDescription = null, tint = NewUiColors.onGroundMuted, modifier = Modifier.size(15.dp))
+                Text("  Αλλαγή ημερολογίου", color = NewUiColors.onGroundMuted, fontSize = 12.sp)
+            }
+            TextButton(onClick = onSignOut) {
+                Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, tint = NewUiColors.onGroundMuted, modifier = Modifier.size(15.dp))
+                Text("  Αποσύνδεση", color = NewUiColors.onGroundMuted, fontSize = 12.sp)
             }
         }
     }

@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -36,6 +37,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Celebration
 import androidx.compose.material.icons.filled.FlightTakeoff
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -118,6 +120,7 @@ fun BookingListScreen(
     onAddBooking: () -> Unit,
     onOpenBooking: (Booking) -> Unit,
     onOpenSettings: () -> Unit,
+    onRefresh: () -> Unit,
     onSetFilter: (BookingFilter) -> Unit,
     onSetThemeKey: (String) -> Unit,
     onRequestDelete: (Booking) -> Unit,
@@ -165,6 +168,16 @@ fun BookingListScreen(
                         iconSize = 20.dp,
                     )
                     Spacer(Modifier.width(8.dp))
+                    // A booking added on the phone reaches this machine through Google Calendar,
+                    // not through the app - so without a way to re-fetch, the desktop list stayed
+                    // on whatever it read at startup until the app was restarted.
+                    NewIconButton(
+                        icon = Icons.Filled.Refresh,
+                        contentDescription = "Ανανέωση",
+                        onClick = onRefresh,
+                        iconSize = 21.dp,
+                    )
+                    Spacer(Modifier.width(8.dp))
                     NewIconButton(
                         icon = Icons.Filled.Settings,
                         contentDescription = "Ρυθμίσεις",
@@ -210,14 +223,17 @@ fun BookingListScreen(
                 }
                 else -> {
                     val grouped = bookings.groupBy { it.ceremonyStart.toJavaInstant().atZone(zone).toLocalDate() }
+                    // Position in the flattened list, resolved up front. Counting with a var read
+                    // from inside the item lambdas instead would count *compositions*, so every
+                    // scroll back and forth would hand the same card a different entrance delay.
+                    val entranceIndex = bookings.withIndex().associate { (index, booking) -> booking.bookingId to index }
                     LazyColumn(contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 120.dp)) {
-                        var runningIndex = 0
                         grouped.forEach { (date, dayBookings) ->
                             item(key = "header-$date") {
                                 DayHeader(dayHeaderLabel(date), palette.accent, palette.accentDim)
                             }
                             items(dayBookings, key = { it.bookingId }) { booking ->
-                                val index = runningIndex++
+                                val index = entranceIndex[booking.bookingId] ?: 0
                                 NewListEntrance(index = index, modifier = Modifier.padding(bottom = 12.dp)) {
                                     NewBookingCard(
                                         booking = booking,
@@ -359,16 +375,20 @@ private fun FilterPill(label: String, selected: Boolean, underlineColor: Color, 
             color = if (selected) NewUiColors.onGround else NewUiColors.onGroundMuted,
             fontSize = 13.sp,
         )
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(horizontal = 12.dp)
-                .fillMaxWidth()
-                .height(2.dp)
-                .background(
-                    Brush.horizontalGradient(listOf(Color.Transparent, underlineColor.copy(alpha = underlineAlpha), Color.Transparent)),
-                ),
-        )
+        // matchParentSize, not align+fillMaxWidth: the row of chips scrolls horizontally, so the
+        // width constraint reaching this Box is unbounded and fillMaxWidth() would collapse the
+        // underline to nothing. Matching the parent's measured size gives it the chip's width.
+        Box(modifier = Modifier.matchParentSize(), contentAlignment = Alignment.BottomCenter) {
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .fillMaxWidth()
+                    .height(2.dp)
+                    .background(
+                        Brush.horizontalGradient(listOf(Color.Transparent, underlineColor.copy(alpha = underlineAlpha), Color.Transparent)),
+                    ),
+            )
+        }
     }
 }
 
@@ -396,6 +416,11 @@ private fun NewBookingCard(booking: Booking, onClick: () -> Unit, onLongPress: (
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            // The card's height comes from its text column, and a LazyColumn hands its items an
+            // unbounded height constraint - under which fillMaxHeight() is a no-op, so the coloured
+            // type bar below measured 0dp tall and never appeared. Min-intrinsic height gives the
+            // row a concrete height for the bar to match.
+            .height(IntrinsicSize.Min)
             .clip(RoundedCornerShape(16.dp))
             .background(Brush.linearGradient(NewUiColors.cardGradient))
             .border(1.dp, NewUiColors.outlineSoft, RoundedCornerShape(16.dp))

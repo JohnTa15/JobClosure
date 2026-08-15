@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -198,14 +199,17 @@ fun NewBookingListScreen(
                 }
             } else {
                 val grouped = bookings.groupBy { it.ceremonyStart.toLocalDate() }
+                // Position in the flattened list, resolved up front. Counting with a var read from
+                // inside the item lambdas instead would count *compositions*, so every scroll back
+                // and forth would hand the same card a different entrance delay.
+                val entranceIndex = bookings.withIndex().associate { (index, booking) -> booking.id to index }
                 LazyColumn(contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 120.dp)) {
-                    var runningIndex = 0
                     grouped.forEach { (date, dayBookings) ->
                         item(key = "header-$date") {
                             DayHeader(dayHeaderLabel(date), palette.accent, palette.accentDim)
                         }
                         items(dayBookings, key = { it.id }) { booking ->
-                            val index = runningIndex++
+                            val index = entranceIndex[booking.id] ?: 0
                             NewListEntrance(index = index, modifier = Modifier.padding(bottom = 12.dp)) {
                                 NewBookingCard(
                                     booking = booking,
@@ -350,16 +354,20 @@ private fun FilterPill(label: String, selected: Boolean, underlineColor: Color, 
             color = if (selected) NewUiColors.onGround else NewUiColors.onGroundMuted,
             fontSize = 13.sp,
         )
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(horizontal = 12.dp)
-                .fillMaxWidth()
-                .height(2.dp)
-                .background(
-                    Brush.horizontalGradient(listOf(Color.Transparent, underlineColor.copy(alpha = underlineAlpha), Color.Transparent)),
-                ),
-        )
+        // matchParentSize, not align+fillMaxWidth: the row of chips scrolls horizontally, so the
+        // width constraint reaching this Box is unbounded and fillMaxWidth() would collapse the
+        // underline to nothing. Matching the parent's measured size gives it the chip's width.
+        Box(modifier = Modifier.matchParentSize(), contentAlignment = Alignment.BottomCenter) {
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .fillMaxWidth()
+                    .height(2.dp)
+                    .background(
+                        Brush.horizontalGradient(listOf(Color.Transparent, underlineColor.copy(alpha = underlineAlpha), Color.Transparent)),
+                    ),
+            )
+        }
     }
 }
 
@@ -387,11 +395,15 @@ private fun NewBookingCard(booking: Booking, onClick: () -> Unit, onLongPress: (
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            // Gives the row a concrete height (that of its text column) so the type bar can match it.
+            .height(IntrinsicSize.Min)
             .clip(RoundedCornerShape(16.dp))
             .background(Brush.linearGradient(NewUiColors.cardGradient))
             .border(1.dp, NewUiColors.outlineSoft, RoundedCornerShape(16.dp))
             .combinedClickable(onClick = onClick, onLongClick = onLongPress),
     ) {
+        // fillMaxHeight() is a no-op under the unbounded height constraint a LazyColumn item gets,
+        // which left the coloured type bar measuring 0dp tall - see the IntrinsicSize.Min above.
         Box(modifier = Modifier.fillMaxHeight().width(4.dp).background(colors.barBrush))
         Column(modifier = Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {

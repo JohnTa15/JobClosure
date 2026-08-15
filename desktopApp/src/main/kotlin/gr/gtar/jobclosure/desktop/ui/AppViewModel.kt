@@ -168,16 +168,38 @@ class AppViewModel(private val scope: CoroutineScope) {
                         )
                     }
                 }
-                .onFailure { error ->
-                    _state.update {
-                        it.copy(
-                            isLoading = false,
-                            statusMessage = null,
-                            errorMessage = "Αποτυχία φόρτωσης ημερολογίων: ${error.message}",
-                        )
-                    }
-                }
+                .onFailure { error -> reportFailure("Αποτυχία φόρτωσης ημερολογίων", error) }
         }
+    }
+
+    /**
+     * Google invalidates the refresh token when the consent screen is still in Testing (after 7
+     * days), when access is revoked, or when the OAuth client is changed - and it says so with
+     * `invalid_grant`. Every call then fails identically, so without catching it here the app just
+     * repeats "αποτυχία φόρτωσης" forever with no way out. Send the user back to sign-in instead,
+     * which is the only thing that actually fixes it.
+     */
+    private fun reportFailure(prefix: String, error: Throwable) {
+        val text = "${error.message}"
+        if (text.contains("invalid_grant", ignoreCase = true) || text.contains("invalid_token", ignoreCase = true)) {
+            cachedAccessToken = null
+            currentSettings = currentSettings.copy(refreshToken = "")
+            DesktopSettingsStore.save(currentSettings)
+            _state.update {
+                it.copy(
+                    isLoading = false,
+                    statusMessage = null,
+                    calendars = emptyList(),
+                    settings = currentSettings,
+                    screen = Screen.SignIn,
+                    errorMessage = "Η σύνδεση με τη Google έληξε - συνδέσου ξανά. (Αν η εφαρμογή " +
+                        "είναι σε κατάσταση Testing στο Google Cloud, αυτό συμβαίνει κάθε 7 ημέρες " +
+                        "μέχρι να την κάνεις Publish.)",
+                )
+            }
+            return
+        }
+        _state.update { it.copy(isLoading = false, statusMessage = null, errorMessage = "$prefix: $text") }
     }
 
     fun selectCalendar(calendarId: String) {
@@ -189,14 +211,15 @@ class AppViewModel(private val scope: CoroutineScope) {
 
     fun loadBookings() {
         val calendarId = currentSettings.calendarId
-        if (calendarId.isBlank()) return
+        // Also bails out with no session: save/delete call this straight after their own request,
+        // and if that request was what revealed an expired token, retrying here would only bury
+        // the "sign in again" message under a second, less useful failure.
+        if (calendarId.isBlank() || currentSettings.refreshToken.isBlank()) return
         scope.launch {
             _state.update { it.copy(isLoading = true, errorMessage = null) }
             runCatching { repository.listBookings(calendarId) }
                 .onSuccess { bookings -> _state.update { it.copy(isLoading = false, bookings = bookings) } }
-                .onFailure { error ->
-                    _state.update { it.copy(isLoading = false, errorMessage = "Αποτυχία φόρτωσης κρατήσεων: ${error.message}") }
-                }
+                .onFailure { error -> reportFailure("Αποτυχία φόρτωσης κρατήσεων", error) }
         }
     }
 
@@ -238,9 +261,7 @@ class AppViewModel(private val scope: CoroutineScope) {
             _state.update { it.copy(isLoading = true, pendingConflicts = emptyList(), pendingSave = null) }
             runCatching { repository.saveBooking(calendarId, booking) }
                 .onSuccess { _state.update { it.copy(isLoading = false, screen = Screen.List) } }
-                .onFailure { error ->
-                    _state.update { it.copy(isLoading = false, errorMessage = "Αποτυχία αποθήκευσης: ${error.message}") }
-                }
+                .onFailure { error -> reportFailure("Αποτυχία αποθήκευσης", error) }
             loadBookings()
         }
     }
@@ -252,9 +273,7 @@ class AppViewModel(private val scope: CoroutineScope) {
             _state.update { it.copy(isLoading = true) }
             runCatching { repository.deleteBooking(calendarId, booking) }
                 .onSuccess { _state.update { it.copy(isLoading = false, screen = Screen.List) } }
-                .onFailure { error ->
-                    _state.update { it.copy(isLoading = false, errorMessage = "Αποτυχία διαγραφής: ${error.message}") }
-                }
+                .onFailure { error -> reportFailure("Αποτυχία διαγραφής", error) }
             loadBookings()
         }
     }
@@ -271,10 +290,54 @@ class AppViewModel(private val scope: CoroutineScope) {
         _state.update { it.copy(screen = Screen.List) }
     }
 
-    fun setGitHubToken(token: String) {
-        currentSettings = currentSettings.copy(gitHubToken = token)
+    /**
+     * Writes the settings-screen text fields in one go. They used to save on every keystroke, which
+     * rewrote the settings file per character and pushed a state update through the whole screen;
+     * an explicit "save and apply" is both cheaper and clearer about when a change has taken.
+     */
+    fun saveSettings(gitHubToken: String, dronePartnerEmail: String) {
+        currentSettings = currentSettings.copy(
+            gitHubToken = gitHubToken.trim(),
+            dronePartnerEmail = dronePartnerEmail.trim(),
+        )
         DesktopSettingsStore.save(currentSettings)
         _state.update { it.copy(settings = currentSettings) }
+    }
+
+    /** Re-opens the calendar picker on the sign-in screen, without dropping the Google session. */
+    fun changeCalendar() {
+        if (currentSettings.refreshToken.isBlank()) {
+            _state.update { it.copy(screen = Screen.SignIn, calendars = emptyList()) }
+            return
+        }
+        _state.update {
+            it.copy(screen = Screen.SignIn, isLoading = true, errorMessage = null, statusMessage = "Φόρτωση ημερολογίων...")
+        }
+        loadCalendars()
+    }
+
+    /**
+     * Forgets the Google session (but keeps the OAuth client details, which are a property of the
+     * machine rather than the account) and returns to sign-in. Without this there was no way back
+     * to the sign-in screen once a calendar had been picked - a dead end whenever the stored
+     * refresh token stopped working.
+     */
+    fun signOut() {
+        cachedAccessToken = null
+        cachedAccessTokenExpiry = Instant.EPOCH
+        currentSettings = currentSettings.copy(refreshToken = "", calendarId = "")
+        DesktopSettingsStore.save(currentSettings)
+        _state.update {
+            it.copy(
+                settings = currentSettings,
+                screen = Screen.SignIn,
+                calendars = emptyList(),
+                bookings = emptyList(),
+                isLoading = false,
+                statusMessage = null,
+                errorMessage = null,
+            )
+        }
     }
 
     fun setThemeKey(key: String) {
@@ -299,12 +362,6 @@ class AppViewModel(private val scope: CoroutineScope) {
         val booking = _state.value.pendingDelete ?: return
         _state.update { it.copy(pendingDelete = null) }
         deleteBooking(booking)
-    }
-
-    fun setDronePartnerEmail(email: String) {
-        currentSettings = currentSettings.copy(dronePartnerEmail = email)
-        DesktopSettingsStore.save(currentSettings)
-        _state.update { it.copy(settings = currentSettings) }
     }
 
     fun checkForUpdate() {

@@ -1,9 +1,12 @@
 package gr.gtar.jobclosure.desktop
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -112,6 +115,7 @@ fun main() = application {
                         onAddBooking = { viewModel.startNewBooking() },
                         onOpenBooking = { viewModel.startEditBooking(it) },
                         onOpenSettings = { viewModel.openSettings() },
+                        onRefresh = { viewModel.loadBookings() },
                         onSetFilter = { viewModel.setFilter(it) },
                         onSetThemeKey = { viewModel.setThemeKey(it) },
                         onRequestDelete = { viewModel.requestDelete(it) },
@@ -121,8 +125,11 @@ fun main() = application {
                     is Screen.Settings -> DesktopSettingsScreen(
                         state = state,
                         onSetThemeKey = { viewModel.setThemeKey(it) },
-                        onSaveGitHubToken = { viewModel.setGitHubToken(it) },
-                        onSaveDronePartnerEmail = { viewModel.setDronePartnerEmail(it) },
+                        onSaveSettings = { gitHubToken, dronePartnerEmail ->
+                            viewModel.saveSettings(gitHubToken, dronePartnerEmail)
+                        },
+                        onChangeCalendar = { viewModel.changeCalendar() },
+                        onSignOut = { viewModel.signOut() },
                         onCheckForUpdate = { viewModel.checkForUpdate() },
                         onShowChangelogHistory = { viewModel.showChangelogHistory() },
                         onBack = { viewModel.closeSettings() },
@@ -139,7 +146,11 @@ fun main() = application {
                     )
                 }
             }
-            SnackbarHost(hostState = snackbarHostState)
+            // Anchored to the bottom of the window: left free-standing it laid out at the top-left
+            // corner, covering the screen header it was supposed to sit clear of.
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+                SnackbarHost(hostState = snackbarHostState, modifier = Modifier.padding(16.dp))
+            }
 
             if (state.unseenChangelogEntries.isNotEmpty()) {
                 AlertDialog(
