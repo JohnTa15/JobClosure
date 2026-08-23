@@ -21,6 +21,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import gr.gtar.jobclosure.dagr.DagrAccount
+import gr.gtar.jobclosure.dagr.DagrSecureStore
 
 class SettingsViewModel(
     application: Application,
@@ -29,6 +31,42 @@ class SettingsViewModel(
     private val crashReportSender: CrashReportSender,
     val placeSearchRepository: PlaceSearchRepository,
 ) : AndroidViewModel(application) {
+
+    private val dagrSecureStore = DagrSecureStore(application)
+
+    /** The DAGR sign-in, read straight from the Keystore-backed store rather than from DataStore -
+     *  see DagrSecureStore for why it is kept apart from the rest of settings. */
+    private val _dagrAccount = MutableStateFlow(dagrSecureStore.load())
+    val dagrAccount: StateFlow<DagrAccount> = _dagrAccount.asStateFlow()
+
+    fun saveDagrAccount(username: String, password: String) {
+        val account = DagrAccount(username.trim(), password)
+        dagrSecureStore.save(account)
+        _dagrAccount.value = account
+    }
+
+    fun clearDagrAccount() {
+        dagrSecureStore.clear()
+        _dagrAccount.value = DagrAccount()
+    }
+
+    fun setDagrProfile(
+        operatorRegistration: String,
+        pilotName: String,
+        uasModel: String,
+        maxAltitudeMeters: Int,
+        radiusMeters: Int,
+    ) {
+        viewModelScope.launch {
+            repository.setDagrProfile(
+                operatorRegistration.trim(),
+                pilotName.trim(),
+                uasModel.trim(),
+                maxAltitudeMeters,
+                radiusMeters,
+            )
+        }
+    }
 
     private val _crashReports = MutableStateFlow(CrashReporter.reports(application))
     val crashReports: StateFlow<List<CrashReport>> = _crashReports.asStateFlow()

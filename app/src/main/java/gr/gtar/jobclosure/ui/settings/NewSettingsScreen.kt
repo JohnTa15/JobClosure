@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.EventRepeat
+import androidx.compose.material.icons.filled.FlightTakeoff
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Map
@@ -78,6 +79,7 @@ import gr.gtar.jobclosure.ui.components.NewIconButton
 import gr.gtar.jobclosure.ui.components.NewSectionLabel
 import gr.gtar.jobclosure.ui.components.NewSelectableSwatch
 import gr.gtar.jobclosure.ui.components.NewSwitch
+import gr.gtar.jobclosure.ui.theme.AccentPalette
 import gr.gtar.jobclosure.ui.theme.AppTheme
 import gr.gtar.jobclosure.ui.theme.AppThemePalettes
 import gr.gtar.jobclosure.ui.theme.NewUiColors
@@ -101,6 +103,13 @@ fun NewSettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onImport
     var reminderMinutes by remember { mutableStateOf("120") }
     var dronePartnerEmail by remember { mutableStateOf("") }
     var gitHubToken by remember { mutableStateOf("") }
+    var dagrUsername by remember { mutableStateOf("") }
+    var dagrPassword by remember { mutableStateOf("") }
+    var dagrOperator by remember { mutableStateOf("") }
+    var dagrPilot by remember { mutableStateOf("") }
+    var dagrUas by remember { mutableStateOf("") }
+    var dagrAltitude by remember { mutableStateOf("120") }
+    var dagrRadius by remember { mutableStateOf("200") }
     var loaded by remember { mutableStateOf(false) }
     var isLocating by remember { mutableStateOf(false) }
     var locationError by remember { mutableStateOf<String?>(null) }
@@ -148,6 +157,14 @@ fun NewSettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onImport
         reminderMinutes = current.reminderMinutesBefore.toString()
         dronePartnerEmail = current.dronePartnerEmail
         gitHubToken = current.gitHubToken
+        dagrOperator = current.dagrOperatorRegistration
+        dagrPilot = current.dagrPilotName
+        dagrUas = current.dagrUasModel
+        dagrAltitude = current.dagrMaxAltitudeMeters.toString()
+        dagrRadius = current.dagrRadiusMeters.toString()
+        val account = viewModel.dagrAccount.value
+        dagrUsername = account.username
+        dagrPassword = account.password
         loaded = true
     }
 
@@ -316,6 +333,29 @@ fun NewSettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onImport
                     )
                 }
 
+                DagrSection(
+                    username = dagrUsername,
+                    onUsernameChange = { dagrUsername = it },
+                    password = dagrPassword,
+                    onPasswordChange = { dagrPassword = it },
+                    operatorRegistration = dagrOperator,
+                    onOperatorRegistrationChange = { dagrOperator = it },
+                    pilotName = dagrPilot,
+                    onPilotNameChange = { dagrPilot = it },
+                    uasModel = dagrUas,
+                    onUasModelChange = { dagrUas = it },
+                    maxAltitude = dagrAltitude,
+                    onMaxAltitudeChange = { dagrAltitude = it },
+                    radius = dagrRadius,
+                    onRadiusChange = { dagrRadius = it },
+                    onClearAccount = {
+                        viewModel.clearDagrAccount()
+                        dagrUsername = ""
+                        dagrPassword = ""
+                    },
+                    palette = palette,
+                )
+
                 CrashReportSection(viewModel = viewModel, palette = palette)
 
                 val updateStatusForToken by viewModel.updateStatus.collectAsState()
@@ -361,6 +401,14 @@ fun NewSettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onImport
                             reminderMinutes.toIntOrNull()?.let { viewModel.setReminderMinutesBefore(it) }
                             viewModel.setDronePartnerEmail(dronePartnerEmail)
                             viewModel.setGitHubToken(gitHubToken)
+                            viewModel.setDagrProfile(
+                                operatorRegistration = dagrOperator,
+                                pilotName = dagrPilot,
+                                uasModel = dagrUas,
+                                maxAltitudeMeters = dagrAltitude.toIntOrNull() ?: 120,
+                                radiusMeters = dagrRadius.toIntOrNull() ?: 200,
+                            )
+                            viewModel.saveDagrAccount(dagrUsername, dagrPassword)
                             justSaved = true
                         },
                         icon = if (justSaved) Icons.Filled.CheckCircle else Icons.Filled.Save,
@@ -371,7 +419,7 @@ fun NewSettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onImport
                         height = 46.dp,
                     )
                     Text(
-                        "Αποθηκεύει τη διεύθυνση σπιτιού, το κλειδί Google Maps, την υπενθύμιση, τον συνεργάτη drone και το GitHub token.",
+                        "Αποθηκεύει τη διεύθυνση σπιτιού, το κλειδί Google Maps, την υπενθύμιση, τον συνεργάτη drone, το GitHub token και τα στοιχεία DAGR.",
                         color = NewUiColors.onGroundFaint,
                         fontSize = 11.sp,
                         modifier = Modifier.padding(top = 8.dp),
@@ -680,6 +728,7 @@ private fun SettingsField(
     leadingIcon: androidx.compose.ui.graphics.vector.ImageVector? = null,
     iconTint: Color = accent,
     keyboardType: KeyboardType = KeyboardType.Text,
+    isSecret: Boolean = false,
 ) {
     Column(modifier = modifier) {
         NewSectionLabel(text = label, modifier = Modifier.padding(bottom = 7.dp))
@@ -688,6 +737,11 @@ private fun SettingsField(
             onValueChange = onValueChange,
             textStyle = androidx.compose.ui.text.TextStyle(color = NewUiColors.onGround, fontSize = 15.sp),
             cursorBrush = androidx.compose.ui.graphics.SolidColor(accent),
+            visualTransformation = if (isSecret) {
+                androidx.compose.ui.text.input.PasswordVisualTransformation()
+            } else {
+                androidx.compose.ui.text.input.VisualTransformation.None
+            },
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = keyboardType),
             modifier = Modifier.fillMaxWidth(),
             decorationBox = { inner ->
@@ -705,6 +759,135 @@ private fun SettingsField(
                     Box(modifier = Modifier.weight(1f)) { inner() }
                 }
             },
+        )
+    }
+}
+
+
+/**
+ * Drone Aware - GR. The sign-in goes to the Keystore-backed store rather than DataStore (see
+ * DagrSecureStore); everything below it is the constant half of a flight request, typed once here
+ * so the per-booking screen only has to add the venue, the date and the window.
+ */
+@Composable
+private fun DagrSection(
+    username: String,
+    onUsernameChange: (String) -> Unit,
+    password: String,
+    onPasswordChange: (String) -> Unit,
+    operatorRegistration: String,
+    onOperatorRegistrationChange: (String) -> Unit,
+    pilotName: String,
+    onPilotNameChange: (String) -> Unit,
+    uasModel: String,
+    onUasModelChange: (String) -> Unit,
+    maxAltitude: String,
+    onMaxAltitudeChange: (String) -> Unit,
+    radius: String,
+    onRadiusChange: (String) -> Unit,
+    onClearAccount: () -> Unit,
+    palette: AccentPalette,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(NewUiColors.droneChip.copy(alpha = 0.08f), RoundedCornerShape(18.dp))
+            .border(1.dp, NewUiColors.droneChip.copy(alpha = 0.28f), RoundedCornerShape(18.dp))
+            .padding(16.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.FlightTakeoff, contentDescription = null, tint = NewUiColors.success, modifier = Modifier.size(17.dp))
+            NewSectionLabel(text = "Drone Aware - GR", color = NewUiColors.success, modifier = Modifier.padding(start = 8.dp))
+        }
+        Text(
+            "Ο λογαριασμός χρειάζεται μόνο για υποβολή αίτησης πτήσης - τους περιορισμούς τους " +
+                "βλέπεις και χωρίς αυτόν. Ο κωδικός αποθηκεύεται κρυπτογραφημένος στο Android " +
+                "Keystore της συσκευής και δεν φεύγει από αυτήν.",
+            color = NewUiColors.onGroundFaint,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(top = 8.dp, bottom = 12.dp),
+        )
+
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            SettingsField(
+                label = "Χρήστης DAGR",
+                value = username,
+                onValueChange = onUsernameChange,
+                leadingIcon = Icons.Filled.Person,
+                iconTint = NewUiColors.droneChip,
+                accent = palette.accent,
+                modifier = Modifier.weight(1f),
+            )
+            SettingsField(
+                label = "Κωδικός DAGR",
+                value = password,
+                onValueChange = onPasswordChange,
+                leadingIcon = Icons.Filled.Key,
+                iconTint = NewUiColors.droneChip,
+                keyboardType = KeyboardType.Password,
+                isSecret = true,
+                accent = palette.accent,
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        if (username.isNotBlank() || password.isNotBlank()) {
+            Text(
+                "Διαγραφή λογαριασμού DAGR",
+                color = MaterialTheme.colorScheme.error,
+                fontSize = 12.sp,
+                modifier = Modifier
+                    .padding(top = 10.dp)
+                    .clickable { onClearAccount() },
+            )
+        }
+
+        SettingsField(
+            label = "Αριθμός μητρώου χειριστή",
+            value = operatorRegistration,
+            onValueChange = onOperatorRegistrationChange,
+            accent = palette.accent,
+            modifier = Modifier.padding(top = 12.dp),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 12.dp)) {
+            SettingsField(
+                label = "Ονοματεπώνυμο χειριστή",
+                value = pilotName,
+                onValueChange = onPilotNameChange,
+                accent = palette.accent,
+                modifier = Modifier.weight(1f),
+            )
+            SettingsField(
+                label = "Μοντέλο drone",
+                value = uasModel,
+                onValueChange = onUasModelChange,
+                accent = palette.accent,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 12.dp)) {
+            SettingsField(
+                label = "Μέγιστο ύψος (m)",
+                value = maxAltitude,
+                onValueChange = onMaxAltitudeChange,
+                keyboardType = KeyboardType.Number,
+                accent = palette.accent,
+                modifier = Modifier.weight(1f),
+            )
+            SettingsField(
+                label = "Ακτίνα πτήσης (m)",
+                value = radius,
+                onValueChange = onRadiusChange,
+                keyboardType = KeyboardType.Number,
+                accent = palette.accent,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Text(
+            "120 m είναι το όριο της κατηγορίας Open - άλλαξέ το μόνο αν έχεις ειδική άδεια.",
+            color = NewUiColors.onGroundFaint,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(top = 8.dp),
         )
     }
 }

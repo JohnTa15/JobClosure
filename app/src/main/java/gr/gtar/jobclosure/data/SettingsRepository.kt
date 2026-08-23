@@ -32,6 +32,15 @@ data class AppSettings(
     // its classic look until the user opts in from Settings; themeKey only matters once it's on.
     val useNewDesign: Boolean = false,
     val themeKey: String = "nocturne",
+    // Drone Aware - GR: the parts of a flight request that belong to the operator rather than the
+    // job, so they are typed once here instead of on every request. The sign-in itself is NOT here
+    // - it lives encrypted under an Android Keystore key, see DagrSecureStore.
+    val dagrOperatorRegistration: String = "",
+    val dagrPilotName: String = "",
+    val dagrUasModel: String = "",
+    // 120 m is the ceiling of the EU open category almost all of these flights sit in.
+    val dagrMaxAltitudeMeters: Int = 120,
+    val dagrRadiusMeters: Int = 200,
 )
 
 class SettingsRepository(private val context: Context) {
@@ -47,6 +56,11 @@ class SettingsRepository(private val context: Context) {
         val CHANGELOG_LAST_SEEN_ID = intPreferencesKey("changelog_last_seen_id")
         val USE_NEW_DESIGN = booleanPreferencesKey("use_new_design")
         val THEME_KEY = stringPreferencesKey("theme_key")
+        val DAGR_OPERATOR_REGISTRATION = stringPreferencesKey("dagr_operator_registration")
+        val DAGR_PILOT_NAME = stringPreferencesKey("dagr_pilot_name")
+        val DAGR_UAS_MODEL = stringPreferencesKey("dagr_uas_model")
+        val DAGR_MAX_ALTITUDE = intPreferencesKey("dagr_max_altitude_meters")
+        val DAGR_RADIUS = intPreferencesKey("dagr_radius_meters")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
@@ -67,6 +81,11 @@ class SettingsRepository(private val context: Context) {
             changelogLastSeenId = prefs[Keys.CHANGELOG_LAST_SEEN_ID] ?: 0,
             useNewDesign = prefs[Keys.USE_NEW_DESIGN] ?: false,
             themeKey = prefs[Keys.THEME_KEY] ?: "nocturne",
+            dagrOperatorRegistration = prefs[Keys.DAGR_OPERATOR_REGISTRATION] ?: "",
+            dagrPilotName = prefs[Keys.DAGR_PILOT_NAME] ?: "",
+            dagrUasModel = prefs[Keys.DAGR_UAS_MODEL] ?: "",
+            dagrMaxAltitudeMeters = prefs[Keys.DAGR_MAX_ALTITUDE] ?: 120,
+            dagrRadiusMeters = prefs[Keys.DAGR_RADIUS] ?: 200,
         )
     }
 
@@ -104,6 +123,22 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setUseNewDesign(enabled: Boolean) {
         context.dataStore.edit { it[Keys.USE_NEW_DESIGN] = enabled }
+    }
+
+    suspend fun setDagrProfile(
+        operatorRegistration: String,
+        pilotName: String,
+        uasModel: String,
+        maxAltitudeMeters: Int,
+        radiusMeters: Int,
+    ) {
+        context.dataStore.edit {
+            it[Keys.DAGR_OPERATOR_REGISTRATION] = operatorRegistration
+            it[Keys.DAGR_PILOT_NAME] = pilotName
+            it[Keys.DAGR_UAS_MODEL] = uasModel
+            it[Keys.DAGR_MAX_ALTITUDE] = maxAltitudeMeters
+            it[Keys.DAGR_RADIUS] = radiusMeters
+        }
     }
 
     suspend fun setThemeKey(key: String) {

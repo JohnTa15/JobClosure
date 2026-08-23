@@ -53,6 +53,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import gr.gtar.jobclosure.data.Booking
 import gr.gtar.jobclosure.data.MapsProvider
+import gr.gtar.jobclosure.dagr.DagrVenue
 import gr.gtar.jobclosure.drone.DroneAware
 import gr.gtar.jobclosure.network.DroneConditionsResult
 import gr.gtar.jobclosure.network.TravelTimeResult
@@ -88,6 +89,7 @@ fun BookingDetailScreen(
     viewModel: BookingDetailViewModel,
     onBack: () -> Unit,
     onEdit: (Long) -> Unit,
+    onOpenDagr: (DagrVenue, Pair<Double, Double>?) -> Unit,
 ) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -205,6 +207,8 @@ fun BookingDetailScreen(
                 isLoadingTravelTime = state.isLoadingTravelTimes,
                 hasDrone = booking.hasDrone,
                 coordinates = state.churchCoordinates,
+                dagrVenue = DagrVenue.CHURCH,
+                onOpenDagr = onOpenDagr,
                 weatherConditions = state.churchDroneConditions,
                 weatherForecastDate = booking.ceremonyStart.toLocalDate(),
                 isLoadingWeatherConditions = state.isLoadingDroneConditions,
@@ -228,6 +232,8 @@ fun BookingDetailScreen(
                     isLoadingTravelTime = state.isLoadingTravelTimes,
                     hasDrone = booking.hasDrone,
                     coordinates = state.receptionCoordinates,
+                    dagrVenue = DagrVenue.RECEPTION,
+                    onOpenDagr = onOpenDagr,
                     weatherConditions = state.receptionDroneConditions,
                     weatherForecastDate = (booking.receptionStart ?: booking.ceremonyStart).toLocalDate(),
                     isLoadingWeatherConditions = state.isLoadingDroneConditions,
@@ -272,6 +278,8 @@ private fun LocationCard(
     hasDrone: Boolean = false,
     /** (lat, lon) of this venue, handed to Drone Aware - GR by the airspace-check button below. */
     coordinates: Pair<Double, Double>? = null,
+    dagrVenue: DagrVenue = DagrVenue.CHURCH,
+    onOpenDagr: (DagrVenue, Pair<Double, Double>?) -> Unit = { _, _ -> },
     weatherConditions: DroneConditionsResult? = null,
     weatherForecastDate: java.time.LocalDate? = null,
     isLoadingWeatherConditions: Boolean = false,
@@ -376,9 +384,8 @@ private fun LocationCard(
             }
 
             if (hasDrone) {
-                val droneAwareContext = LocalContext.current
                 OutlinedButton(
-                    onClick = { DroneAware.open(droneAwareContext, title, coordinates) },
+                    onClick = { onOpenDagr(dagrVenue, coordinates) },
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 ) {
                     Icon(Icons.Filled.GppGood, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -386,8 +393,8 @@ private fun LocationCard(
                 }
                 Text(
                     if (coordinates != null) {
-                        "Συντεταγμένες ${DroneAware.formatCoordinates(coordinates.first, coordinates.second)} - " +
-                            "αντιγράφονται για επικόλληση στο DAGR. Πάντα έλεγχε εκεί πριν πετάξεις."
+                        "Συντεταγμένες ${DroneAware.formatCoordinates(coordinates.first, coordinates.second)}. " +
+                            "Ανοίγει με τα στοιχεία της αίτησης έτοιμα - η υποβολή γίνεται από εσένα."
                     } else {
                         "Δεν βρέθηκαν συντεταγμένες για αυτή τη διεύθυνση. Πάντα έλεγχε στο DAGR πριν πετάξεις."
                     },

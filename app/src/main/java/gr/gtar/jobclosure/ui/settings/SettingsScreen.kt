@@ -25,6 +25,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -72,6 +73,14 @@ fun SettingsScreen(
     var reminderMinutes by remember { mutableStateOf("120") }
     var dronePartnerEmail by remember { mutableStateOf("") }
     var gitHubToken by remember { mutableStateOf("") }
+    var dagrUsername by remember { mutableStateOf("") }
+    var dagrPassword by remember { mutableStateOf("") }
+    var dagrOperator by remember { mutableStateOf("") }
+    var dagrPilot by remember { mutableStateOf("") }
+    var dagrUas by remember { mutableStateOf("") }
+    var dagrAltitude by remember { mutableStateOf("120") }
+    var dagrRadius by remember { mutableStateOf("200") }
+    var dagrSaved by remember { mutableStateOf(false) }
     var loaded by remember { mutableStateOf(false) }
     var isLocating by remember { mutableStateOf(false) }
     var locationError by remember { mutableStateOf<String?>(null) }
@@ -115,6 +124,14 @@ fun SettingsScreen(
         reminderMinutes = current.reminderMinutesBefore.toString()
         dronePartnerEmail = current.dronePartnerEmail
         gitHubToken = current.gitHubToken
+        dagrOperator = current.dagrOperatorRegistration
+        dagrPilot = current.dagrPilotName
+        dagrUas = current.dagrUasModel
+        dagrAltitude = current.dagrMaxAltitudeMeters.toString()
+        dagrRadius = current.dagrRadiusMeters.toString()
+        val dagrAccount = viewModel.dagrAccount.value
+        dagrUsername = dagrAccount.username
+        dagrPassword = dagrAccount.password
         loaded = true
     }
 
@@ -280,6 +297,105 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
 
+            HorizontalDivider()
+            Text("Drone Aware - GR", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Ο λογαριασμός χρειάζεται μόνο για υποβολή αίτησης πτήσης. Ο κωδικός αποθηκεύεται " +
+                    "κρυπτογραφημένος στο Android Keystore της συσκευής και δεν φεύγει από αυτήν.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            OutlinedTextField(
+                value = dagrUsername,
+                onValueChange = { dagrUsername = it; dagrSaved = false },
+                label = { Text("Χρήστης DAGR") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = dagrPassword,
+                onValueChange = { dagrPassword = it; dagrSaved = false },
+                label = { Text("Κωδικός DAGR") },
+                singleLine = true,
+                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
+                ),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = dagrOperator,
+                onValueChange = { dagrOperator = it; dagrSaved = false },
+                label = { Text("Αριθμός μητρώου χειριστή") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = dagrPilot,
+                onValueChange = { dagrPilot = it; dagrSaved = false },
+                label = { Text("Ονοματεπώνυμο χειριστή") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = dagrUas,
+                onValueChange = { dagrUas = it; dagrSaved = false },
+                label = { Text("Μοντέλο drone") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = dagrAltitude,
+                    onValueChange = { dagrAltitude = it; dagrSaved = false },
+                    label = { Text("Μέγιστο ύψος (m)") },
+                    singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                    ),
+                    modifier = Modifier.weight(1f),
+                )
+                OutlinedTextField(
+                    value = dagrRadius,
+                    onValueChange = { dagrRadius = it; dagrSaved = false },
+                    label = { Text("Ακτίνα πτήσης (m)") },
+                    singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                    ),
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Button(
+                    onClick = {
+                        viewModel.setDagrProfile(
+                            operatorRegistration = dagrOperator,
+                            pilotName = dagrPilot,
+                            uasModel = dagrUas,
+                            maxAltitudeMeters = dagrAltitude.toIntOrNull() ?: 120,
+                            radiusMeters = dagrRadius.toIntOrNull() ?: 200,
+                        )
+                        viewModel.saveDagrAccount(dagrUsername, dagrPassword)
+                        dagrSaved = true
+                    },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(if (dagrSaved) "Αποθηκεύτηκε" else "Αποθήκευση DAGR")
+                }
+                TextButton(
+                    onClick = {
+                        viewModel.clearDagrAccount()
+                        dagrUsername = ""
+                        dagrPassword = ""
+                        dagrSaved = false
+                    },
+                ) {
+                    Text("Διαγραφή λογαριασμού")
+                }
+            }
+
+            HorizontalDivider()
             val updateStatusForToken by viewModel.updateStatus.collectAsState()
 
             OutlinedTextField(

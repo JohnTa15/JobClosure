@@ -29,7 +29,10 @@ import gr.gtar.jobclosure.ui.bookingedit.NewBookingEditScreen
 import gr.gtar.jobclosure.ui.bookinglist.BookingListScreen
 import gr.gtar.jobclosure.ui.bookinglist.BookingListViewModel
 import gr.gtar.jobclosure.ui.bookinglist.NewBookingListScreen
+import gr.gtar.jobclosure.dagr.DagrVenue
 import gr.gtar.jobclosure.ui.components.NewDesignEasing
+import gr.gtar.jobclosure.ui.dagr.DagrScreen
+import gr.gtar.jobclosure.ui.dagr.DagrViewModel
 import gr.gtar.jobclosure.ui.importcalendar.CalendarImportScreen
 import gr.gtar.jobclosure.ui.importcalendar.CalendarImportViewModel
 import gr.gtar.jobclosure.ui.settings.NewSettingsScreen
@@ -44,7 +47,20 @@ private const val ROUTE_IMPORT_CALENDAR = "import-calendar"
 private const val ARG_BOOKING_ID = "bookingId"
 private const val ROUTE_EDIT = "edit/{$ARG_BOOKING_ID}"
 private const val ROUTE_DETAIL = "detail/{$ARG_BOOKING_ID}"
+// Coordinates ride in the route because the detail screen has already geocoded them; re-resolving
+// here would repeat a network call to show the same numbers. They are optional - a venue whose
+// address did not resolve still opens DAGR, just without the map position pre-filled.
+private const val ARG_VENUE = "venue"
+private const val ARG_LAT = "lat"
+private const val ARG_LON = "lon"
+private const val ROUTE_DAGR = "dagr/{$ARG_BOOKING_ID}?$ARG_VENUE={$ARG_VENUE}&$ARG_LAT={$ARG_LAT}&$ARG_LON={$ARG_LON}"
 private const val NEW_BOOKING_ID = -1L
+
+private fun dagrRoute(bookingId: Long, venue: DagrVenue, coordinates: Pair<Double, Double>?): String {
+    val lat = coordinates?.first?.toString().orEmpty()
+    val lon = coordinates?.second?.toString().orEmpty()
+    return "dagr/$bookingId?venue=${venue.key}&lat=$lat&lon=$lon"
+}
 
 /**
  * Picks the classic or restyled ("new design") composable for each destination, based on the
@@ -167,14 +183,47 @@ fun JobClosureNavHost(app: JobClosureApp) {
                     viewModel = viewModel,
                     onBack = { navController.popBackStack() },
                     onEdit = { id -> navController.navigate("edit/$id") },
+                    onOpenDagr = { venue, coordinates -> navController.navigate(dagrRoute(bookingId, venue, coordinates)) },
                 )
             } else {
                 BookingDetailScreen(
                     viewModel = viewModel,
                     onBack = { navController.popBackStack() },
                     onEdit = { id -> navController.navigate("edit/$id") },
+                    onOpenDagr = { venue, coordinates -> navController.navigate(dagrRoute(bookingId, venue, coordinates)) },
                 )
             }
+        }
+
+        composable(
+            ROUTE_DAGR,
+            arguments = listOf(
+                navArgument(ARG_BOOKING_ID) { type = NavType.LongType },
+                navArgument(ARG_VENUE) { type = NavType.StringType; defaultValue = DagrVenue.CHURCH.key },
+                navArgument(ARG_LAT) { type = NavType.StringType; defaultValue = "" },
+                navArgument(ARG_LON) { type = NavType.StringType; defaultValue = "" },
+            ),
+        ) { backStackEntry ->
+            val args = backStackEntry.arguments
+            val bookingId = args?.getLong(ARG_BOOKING_ID) ?: NEW_BOOKING_ID
+            val venue = DagrVenue.fromKey(args?.getString(ARG_VENUE))
+            val latitude = args?.getString(ARG_LAT)?.toDoubleOrNull()
+            val longitude = args?.getString(ARG_LON)?.toDoubleOrNull()
+            val viewModel: DagrViewModel = viewModel(
+                factory = viewModelFactory {
+                    initializer {
+                        DagrViewModel(
+                            application = app,
+                            bookingRepository = app.bookingRepository,
+                            settingsRepository = app.settingsRepository,
+                            bookingId = bookingId,
+                            venue = venue,
+                            coordinates = if (latitude != null && longitude != null) latitude to longitude else null,
+                        )
+                    }
+                },
+            )
+            DagrScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
         }
 
         composable(ROUTE_SETTINGS) {

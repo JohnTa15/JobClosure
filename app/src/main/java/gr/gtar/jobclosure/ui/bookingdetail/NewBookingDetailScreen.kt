@@ -59,6 +59,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import gr.gtar.jobclosure.data.Booking
 import gr.gtar.jobclosure.data.MapsProvider
+import gr.gtar.jobclosure.dagr.DagrVenue
 import gr.gtar.jobclosure.drone.DroneAware
 import gr.gtar.jobclosure.network.DroneConditionsResult
 import gr.gtar.jobclosure.network.TravelTimeResult
@@ -106,6 +107,7 @@ fun NewBookingDetailScreen(
     viewModel: BookingDetailViewModel,
     onBack: () -> Unit,
     onEdit: (Long) -> Unit,
+    onOpenDagr: (DagrVenue, Pair<Double, Double>?) -> Unit,
 ) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -249,6 +251,7 @@ fun NewBookingDetailScreen(
                         churchCoordinates = state.churchCoordinates,
                         hasReception = booking.hasReception,
                         receptionCoordinates = state.receptionCoordinates,
+                        onOpenDagr = onOpenDagr,
                         modifier = Modifier.padding(top = 16.dp),
                     )
                 }
@@ -424,10 +427,9 @@ private fun DroneAwarePanel(
     churchCoordinates: Pair<Double, Double>?,
     hasReception: Boolean,
     receptionCoordinates: Pair<Double, Double>?,
+    onOpenDagr: (DagrVenue, Pair<Double, Double>?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
-
     NewPanel(
         borderColor = NewUiColors.droneChip.copy(alpha = 0.28f),
         fillColor = NewUiColors.droneChip.copy(alpha = 0.10f),
@@ -443,7 +445,7 @@ private fun DroneAwarePanel(
                 label = "Εκκλησία",
                 icon = Icons.Filled.Church,
                 coordinates = churchCoordinates,
-                onClick = { DroneAware.open(context, "Εκκλησία", churchCoordinates) },
+                onClick = { onOpenDagr(DagrVenue.CHURCH, churchCoordinates) },
                 modifier = Modifier.weight(1f),
             )
             if (hasReception) {
@@ -451,15 +453,15 @@ private fun DroneAwarePanel(
                     label = "Δεξίωση",
                     icon = Icons.Filled.Celebration,
                     coordinates = receptionCoordinates,
-                    onClick = { DroneAware.open(context, "Δεξίωση", receptionCoordinates) },
+                    onClick = { onOpenDagr(DagrVenue.RECEPTION, receptionCoordinates) },
                     modifier = Modifier.weight(1f),
                 )
             }
         }
 
         Text(
-            "Οι συντεταγμένες αντιγράφονται - επικόλλησέ τες στην αναζήτηση του DAGR. Πάντα έλεγχε " +
-                "εκεί πριν πετάξεις, ειδικά κοντά σε αεροδρόμια ή στρατιωτικές περιοχές.",
+            "Ανοίγει το DAGR μέσα στην εφαρμογή με τα στοιχεία της αίτησης έτοιμα. Η υποβολή " +
+                "γίνεται πάντα από εσένα, αφού ελέγξεις τη φόρμα.",
             color = NewUiColors.onGroundFaint,
             fontSize = 11.sp,
             modifier = Modifier.padding(top = 10.dp),

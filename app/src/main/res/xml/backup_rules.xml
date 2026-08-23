@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 11 and below. The DAGR sign-in is encrypted under an Android Keystore key that does not
+  leave the device, so a restored copy could never be decrypted anyway - excluding it keeps the
+  ciphertext off Google's servers entirely, and means a restore asks for the password again rather
+  than silently carrying across an entry that no longer works.
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="dagr_account.xml" />
+</full-backup-content>
