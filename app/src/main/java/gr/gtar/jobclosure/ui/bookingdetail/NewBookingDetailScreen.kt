@@ -59,6 +59,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import gr.gtar.jobclosure.data.Booking
 import gr.gtar.jobclosure.data.MapsProvider
+import gr.gtar.jobclosure.drone.DroneAware
 import gr.gtar.jobclosure.network.DroneConditionsResult
 import gr.gtar.jobclosure.network.TravelTimeResult
 import gr.gtar.jobclosure.ui.components.AccentButton
@@ -243,6 +244,15 @@ fun NewBookingDetailScreen(
                     )
                 }
 
+                if (booking.hasDrone) {
+                    DroneAwarePanel(
+                        churchCoordinates = state.churchCoordinates,
+                        hasReception = booking.hasReception,
+                        receptionCoordinates = state.receptionCoordinates,
+                        modifier = Modifier.padding(top = 16.dp),
+                    )
+                }
+
                 if (booking.notes.isNotBlank()) {
                     NewPanel(borderColor = NewUiColors.outlineSoft, fillColor = Color(0x80232532), modifier = Modifier.padding(top = 16.dp)) {
                         NewSectionLabel(text = "Σημειώσεις")
@@ -404,6 +414,92 @@ private fun NewLocationPanel(
     }
 }
 
+/**
+ * The airspace check, one button per venue. DAGR cannot be deep-linked to a position (see
+ * [DroneAware]), so each button copies that venue's coordinates and opens the map - which is what
+ * DAGR's own instructions ask pilots to do, and beats hunting for the church on a map of Greece.
+ */
+@Composable
+private fun DroneAwarePanel(
+    churchCoordinates: Pair<Double, Double>?,
+    hasReception: Boolean,
+    receptionCoordinates: Pair<Double, Double>?,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+
+    NewPanel(
+        borderColor = NewUiColors.droneChip.copy(alpha = 0.28f),
+        fillColor = NewUiColors.droneChip.copy(alpha = 0.10f),
+        modifier = modifier,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.Verified, contentDescription = null, tint = NewUiColors.success, modifier = Modifier.size(17.dp))
+            NewSectionLabel(text = "Drone Aware - GR", color = NewUiColors.success, modifier = Modifier.padding(start = 8.dp))
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth().padding(top = 14.dp)) {
+            DroneAwareButton(
+                label = "Εκκλησία",
+                icon = Icons.Filled.Church,
+                coordinates = churchCoordinates,
+                onClick = { DroneAware.open(context, "Εκκλησία", churchCoordinates) },
+                modifier = Modifier.weight(1f),
+            )
+            if (hasReception) {
+                DroneAwareButton(
+                    label = "Δεξίωση",
+                    icon = Icons.Filled.Celebration,
+                    coordinates = receptionCoordinates,
+                    onClick = { DroneAware.open(context, "Δεξίωση", receptionCoordinates) },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+
+        Text(
+            "Οι συντεταγμένες αντιγράφονται - επικόλλησέ τες στην αναζήτηση του DAGR. Πάντα έλεγχε " +
+                "εκεί πριν πετάξεις, ειδικά κοντά σε αεροδρόμια ή στρατιωτικές περιοχές.",
+            color = NewUiColors.onGroundFaint,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(top = 10.dp),
+        )
+    }
+}
+
+@Composable
+private fun DroneAwareButton(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    coordinates: Pair<Double, Double>?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier) {
+        AccentButton(
+            text = label,
+            onClick = onClick,
+            icon = icon,
+            borderColor = NewUiColors.droneChip.copy(alpha = 0.5f),
+            containerColor = Color.Transparent,
+            contentColor = NewUiColors.success,
+            glowColor = NewUiColors.droneChip.copy(alpha = 0.35f),
+            glowRadius = 26.dp,
+            height = 38.dp,
+            fontSize = 13.sp,
+        )
+        // Showing them rather than only copying them: it is the difference between trusting the
+        // button and being able to see that the address actually resolved somewhere sensible.
+        Text(
+            coordinates?.let { DroneAware.formatCoordinates(it.first, it.second) } ?: "χωρίς συντεταγμένες",
+            color = if (coordinates != null) NewUiColors.onGroundDim else NewUiColors.onGroundFaint,
+            fontSize = 10.sp,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(top = 5.dp),
+        )
+    }
+}
+
 @Composable
 private fun NewWeatherPanel(
     hasDrone: Boolean,
@@ -510,27 +606,6 @@ private fun NewWeatherPanel(
                         )
                         Text("${elevation.value.roundToInt()} μ.", color = NewUiColors.onGround, fontSize = 12.sp)
                     }
-
-                    val dagrContext = LocalContext.current
-                    AccentButton(
-                        text = "Έλεγχος στο Drone Aware - GR",
-                        onClick = { dagrContext.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(DAGR_URL))) },
-                        icon = Icons.Filled.Verified,
-                        borderColor = NewUiColors.droneChip.copy(alpha = 0.5f),
-                        containerColor = Color.Transparent,
-                        contentColor = NewUiColors.success,
-                        glowColor = NewUiColors.droneChip.copy(alpha = 0.35f),
-                        glowRadius = 26.dp,
-                        height = 36.dp,
-                        fontSize = 13.sp,
-                        modifier = Modifier.padding(top = 12.dp),
-                    )
-                    Text(
-                        "Πάντα έλεγχε εκεί πριν πετάξεις - ειδικά κοντά σε αεροδρόμια ή στρατιωτικές περιοχές.",
-                        color = NewUiColors.onGroundFaint,
-                        fontSize = 11.sp,
-                        modifier = Modifier.padding(top = 8.dp),
-                    )
                 }
             }
         }
@@ -569,8 +644,6 @@ private fun windDirectionLabel(degrees: Double): String {
     val index = (((degrees % 360) + 360) % 360 / 45.0).roundToInt() % 8
     return directions[index]
 }
-
-private const val DAGR_URL = "https://dagr.hasp.gov.gr/"
 
 private fun openNewDirections(
     context: Context,

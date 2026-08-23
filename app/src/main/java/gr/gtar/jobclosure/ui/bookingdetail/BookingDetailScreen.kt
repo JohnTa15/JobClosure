@@ -53,6 +53,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import gr.gtar.jobclosure.data.Booking
 import gr.gtar.jobclosure.data.MapsProvider
+import gr.gtar.jobclosure.drone.DroneAware
 import gr.gtar.jobclosure.network.DroneConditionsResult
 import gr.gtar.jobclosure.network.TravelTimeResult
 import gr.gtar.jobclosure.ui.components.MiniMapPreview
@@ -66,7 +67,6 @@ private val shortDateFormatter = DateTimeFormatter.ofPattern("d MMMM", Locale("e
 
 /** Drone Aware - GR (DAGR): HCAA/HASP's official pre-flight airspace check for Greece. No public
  *  API is published for it, so this links out to the real site instead of guessing at one. */
-private const val DAGR_URL = "https://dagr.hasp.gov.gr/"
 
 private sealed interface TravelDisplayState {
     data object Loading : TravelDisplayState
@@ -204,6 +204,7 @@ fun BookingDetailScreen(
                 travelResult = state.homeToChurch,
                 isLoadingTravelTime = state.isLoadingTravelTimes,
                 hasDrone = booking.hasDrone,
+                coordinates = state.churchCoordinates,
                 weatherConditions = state.churchDroneConditions,
                 weatherForecastDate = booking.ceremonyStart.toLocalDate(),
                 isLoadingWeatherConditions = state.isLoadingDroneConditions,
@@ -226,6 +227,7 @@ fun BookingDetailScreen(
                     travelResult = state.churchToReception,
                     isLoadingTravelTime = state.isLoadingTravelTimes,
                     hasDrone = booking.hasDrone,
+                    coordinates = state.receptionCoordinates,
                     weatherConditions = state.receptionDroneConditions,
                     weatherForecastDate = (booking.receptionStart ?: booking.ceremonyStart).toLocalDate(),
                     isLoadingWeatherConditions = state.isLoadingDroneConditions,
@@ -268,6 +270,8 @@ private fun LocationCard(
     travelResult: TravelTimeResult?,
     isLoadingTravelTime: Boolean,
     hasDrone: Boolean = false,
+    /** (lat, lon) of this venue, handed to Drone Aware - GR by the airspace-check button below. */
+    coordinates: Pair<Double, Double>? = null,
     weatherConditions: DroneConditionsResult? = null,
     weatherForecastDate: java.time.LocalDate? = null,
     isLoadingWeatherConditions: Boolean = false,
@@ -374,16 +378,19 @@ private fun LocationCard(
             if (hasDrone) {
                 val droneAwareContext = LocalContext.current
                 OutlinedButton(
-                    onClick = {
-                        droneAwareContext.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(DAGR_URL)))
-                    },
+                    onClick = { DroneAware.open(droneAwareContext, title, coordinates) },
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 ) {
                     Icon(Icons.Filled.GppGood, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Text("  Επίσημος έλεγχος στο Drone Aware - GR (ΥΠΑ/HASP)")
+                    Text("  Drone Aware - GR: $title")
                 }
                 Text(
-                    "Πάντα έλεγχε εκεί πριν πετάξεις, ειδικά κοντά σε αεροδρόμια ή στρατιωτικές περιοχές.",
+                    if (coordinates != null) {
+                        "Συντεταγμένες ${DroneAware.formatCoordinates(coordinates.first, coordinates.second)} - " +
+                            "αντιγράφονται για επικόλληση στο DAGR. Πάντα έλεγχε εκεί πριν πετάξεις."
+                    } else {
+                        "Δεν βρέθηκαν συντεταγμένες για αυτή τη διεύθυνση. Πάντα έλεγχε στο DAGR πριν πετάξεις."
+                    },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
