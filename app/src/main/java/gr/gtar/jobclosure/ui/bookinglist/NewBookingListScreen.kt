@@ -1,6 +1,8 @@
 package gr.gtar.jobclosure.ui.bookinglist
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -26,6 +28,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -35,18 +38,20 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Celebration
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.EventBusy
 import androidx.compose.material.icons.filled.FlightTakeoff
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -60,17 +65,23 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import gr.gtar.jobclosure.data.Booking
 import gr.gtar.jobclosure.ui.components.AccentButton
 import gr.gtar.jobclosure.ui.components.AmbientBackground
 import gr.gtar.jobclosure.ui.components.ChangelogDialog
+import gr.gtar.jobclosure.ui.components.GlowBox
 import gr.gtar.jobclosure.ui.components.NewChip
+import gr.gtar.jobclosure.ui.components.NewDesignEasing
 import gr.gtar.jobclosure.ui.components.NewIconButton
 import gr.gtar.jobclosure.ui.components.NewListEntrance
 import gr.gtar.jobclosure.ui.components.NewSectionLabel
 import gr.gtar.jobclosure.ui.components.NewSelectableSwatch
+import gr.gtar.jobclosure.ui.components.NewSwitch
 import gr.gtar.jobclosure.ui.theme.AppTheme
 import gr.gtar.jobclosure.ui.theme.AppThemePalettes
 import gr.gtar.jobclosure.ui.theme.NewUiColors
@@ -83,6 +94,7 @@ private val newMonthYearFormatter = DateTimeFormatter.ofPattern("MMMM yyyy", Loc
 private val newDayHeaderFormatter = DateTimeFormatter.ofPattern("EEE d MMMM", Locale("el", "GR"))
 private val newDayHeaderWithYearFormatter = DateTimeFormatter.ofPattern("EEE d MMMM yyyy", Locale("el", "GR"))
 private val newTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+private val newPreviewDateFormatter = DateTimeFormatter.ofPattern("d MMM yyyy", Locale("el", "GR"))
 
 /** "ΑΥΓΟΥΣΤΟΣ 2026" while everything sits in one month, "2016 - 2026" once it doesn't. */
 private fun listSpanLabel(bookings: List<gr.gtar.jobclosure.data.Booking>): String {
@@ -291,11 +303,9 @@ fun NewBookingListScreen(
 
     pendingDelete?.let { booking ->
         val hasCalendarEvent = booking.churchCalendarEventId != null || booking.receptionCalendarEventId != null
-        DeleteConfirmationDialog(
-            title = "Διαγραφή δουλειάς",
-            body = "Να διαγραφεί οριστικά η δουλειά \"${booking.title}\";",
+        NewDeleteDialog(
+            bookings = listOf(booking),
             calendarCount = if (hasCalendarEvent) 1 else 0,
-            totalCount = 1,
             calendarPermissionGranted = true,
             onDismiss = { viewModel.dismissDeleteRequest() },
             onConfirm = { alsoCalendar -> viewModel.confirmDelete(alsoCalendar) },
@@ -303,11 +313,9 @@ fun NewBookingListScreen(
     }
 
     pendingBulkDelete?.let { request ->
-        DeleteConfirmationDialog(
-            title = "Διαγραφή ${request.bookings.size} δουλειών",
-            body = "Θα διαγραφούν οριστικά από την εφαρμογή.",
+        NewDeleteDialog(
+            bookings = request.bookings,
             calendarCount = request.withCalendarEvents,
-            totalCount = request.bookings.size,
             calendarPermissionGranted = request.calendarPermissionGranted,
             onDismiss = { viewModel.dismissBulkDelete() },
             onConfirm = { alsoCalendar -> viewModel.confirmBulkDelete(alsoCalendar) },
@@ -455,24 +463,33 @@ private fun NewBookingCard(
     onLongPress: () -> Unit,
 ) {
     val colors = typeColors(booking.type)
+    // Animated so entering and leaving selection reads as the same card changing state, rather than
+    // the list redrawing itself under the finger.
+    val borderWidth by animateDpAsState(if (selected) 2.dp else 1.dp, tween(200), label = "card-border")
+    val borderColor by animateColorAsState(
+        if (selected) colors.light else NewUiColors.outlineSoft,
+        tween(200),
+        label = "card-border-color",
+    )
+    val tintAlpha by animateFloatAsState(if (selected) 1f else 0f, tween(220), label = "card-tint")
+
+    Box(modifier = Modifier.fillMaxWidth()) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             // Gives the row a concrete height (that of its text column) so the type bar can match it.
             .height(IntrinsicSize.Min)
             .clip(RoundedCornerShape(16.dp))
+            .background(Brush.linearGradient(NewUiColors.cardGradient))
             .background(
-                if (selected) {
-                    Brush.linearGradient(listOf(colors.light.copy(alpha = 0.22f), colors.dark.copy(alpha = 0.14f)))
-                } else {
-                    Brush.linearGradient(NewUiColors.cardGradient)
-                },
+                Brush.linearGradient(
+                    listOf(
+                        colors.light.copy(alpha = 0.20f * tintAlpha),
+                        colors.dark.copy(alpha = 0.12f * tintAlpha),
+                    ),
+                ),
             )
-            .border(
-                if (selected) 2.dp else 1.dp,
-                if (selected) colors.light else NewUiColors.outlineSoft,
-                RoundedCornerShape(16.dp),
-            )
+            .border(borderWidth, borderColor, RoundedCornerShape(16.dp))
             .combinedClickable(onClick = onClick, onLongClick = onLongPress),
     ) {
         // fillMaxHeight() is a no-op under the unbounded height constraint a LazyColumn item gets,
@@ -548,6 +565,32 @@ private fun NewBookingCard(
             }
         }
     }
+
+        // Bottom-end rather than top: the top row already ends with the unconfirmed marker, and the
+        // bottom-right of a card is empty whatever chips it carries.
+        androidx.compose.animation.AnimatedVisibility(
+            visible = selected,
+            enter = androidx.compose.animation.scaleIn(tween(220, easing = NewDesignEasing), initialScale = 0.4f) + fadeIn(tween(180)),
+            exit = androidx.compose.animation.scaleOut(tween(160), targetScale = 0.4f) + fadeOut(tween(140)),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(CircleShape)
+                    .background(colors.light)
+                    .border(2.dp, NewUiColors.ground, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Filled.Check,
+                    contentDescription = "Επιλεγμένο",
+                    tint = NewUiColors.ground,
+                    modifier = Modifier.size(15.dp),
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -564,128 +607,282 @@ private fun UnconfirmedMarker() {
 }
 
 
+
 /**
- * Deleting a booking used to take its calendar events with it, unconditionally and silently. That
- * is not a decision to make on the user's behalf: a shared calendar entry may be the only copy
- * other people can see. The choice is a checkbox rather than two buttons so the counts can sit
- * beside it - "3 από τις 5" is what makes it checkable rather than abstract.
+ * The destructive confirmation, in the app's own design rather than a stock Material dialog
+ * dropped into the middle of it.
+ *
+ * It lists what is about to go: on a bulk delete the whole point of the pause is being able to see
+ * that the selection is the one you meant, and a count alone cannot show that. The calendar choice
+ * is a switch with its own counts beside it, because deleting a booking used to take its calendar
+ * entries unconditionally and silently - and a shared calendar entry may be the only copy other
+ * people can see.
  */
 @Composable
-private fun DeleteConfirmationDialog(
-    title: String,
-    body: String,
+private fun NewDeleteDialog(
+    bookings: List<Booking>,
     calendarCount: Int,
-    totalCount: Int,
     calendarPermissionGranted: Boolean,
     onDismiss: () -> Unit,
     onConfirm: (alsoDeleteFromCalendar: Boolean) -> Unit,
 ) {
+    // Fixed rather than themed: a destructive action should read the same whichever palette is on.
+    val danger = Color(0xFFFF6B6B)
     val canTouchCalendar = calendarPermissionGranted && calendarCount > 0
-    var alsoCalendar by remember(title) { mutableStateOf(false) }
+    var alsoCalendar by remember(bookings) { mutableStateOf(false) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(body)
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        GlowBox(
+            glowColor = danger.copy(alpha = 0.28f),
+            blurRadius = 44.dp,
+            shape = RoundedCornerShape(24.dp),
+            modifier = Modifier.padding(24.dp).widthIn(max = 420.dp),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(Brush.verticalGradient(listOf(Color(0xFF20222F), NewUiColors.surfaceSunken)))
+                    .border(1.dp, danger.copy(alpha = 0.35f), RoundedCornerShape(24.dp))
+                    .padding(22.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(danger.copy(alpha = 0.14f))
+                            .border(1.dp, danger.copy(alpha = 0.4f), CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(Icons.Filled.DeleteForever, contentDescription = null, tint = danger, modifier = Modifier.size(21.dp))
+                    }
+                    Column(modifier = Modifier.padding(start = 14.dp)) {
+                        NewSectionLabel(text = "Οριστική διαγραφή", color = danger)
+                        Text(
+                            if (bookings.size == 1) "1 δουλειά" else "${bookings.size} δουλειές",
+                            color = NewUiColors.onGround,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(top = 3.dp),
+                        )
+                    }
+                }
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 18.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(NewUiColors.wellDark)
+                        .border(1.dp, NewUiColors.outlineSoft, RoundedCornerShape(14.dp))
+                        .padding(vertical = 4.dp),
+                ) {
+                    // A handful is enough to recognise the selection; a long list would push the
+                    // buttons off screen, which is the last thing a destructive dialog should do.
+                    bookings.take(PREVIEW_LIMIT).forEach { booking -> DeletePreviewRow(booking) }
+                    if (bookings.size > PREVIEW_LIMIT) {
+                        Text(
+                            "+ ${bookings.size - PREVIEW_LIMIT} ακόμα",
+                            color = NewUiColors.onGroundFaint,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(start = 14.dp, top = 6.dp, bottom = 8.dp),
+                        )
+                    }
+                }
+
                 when {
                     calendarCount == 0 -> Text(
                         "Καμία από αυτές δεν έχει εγγραφή στο ημερολόγιο του κινητού.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = NewUiColors.onGroundFaint,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 16.dp),
                     )
                     !calendarPermissionGranted -> Text(
                         "Δεν υπάρχει άδεια ημερολογίου, οπότε οι εγγραφές στο ημερολόγιο θα μείνουν.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
+                        color = danger,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 16.dp),
                     )
                     else -> Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { alsoCalendar = !alsoCalendar },
+                            .padding(top = 16.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (alsoCalendar) danger.copy(alpha = 0.10f) else Color(0x66232532))
+                            .border(
+                                1.dp,
+                                if (alsoCalendar) danger.copy(alpha = 0.35f) else NewUiColors.outlineSoft,
+                                RoundedCornerShape(14.dp),
+                            )
+                            .clickable { alsoCalendar = !alsoCalendar }
+                            .padding(14.dp),
                     ) {
-                        Checkbox(checked = alsoCalendar, onCheckedChange = { alsoCalendar = it })
-                        Column(modifier = Modifier.padding(start = 4.dp)) {
-                            Text("Διαγραφή και από το ημερολόγιο")
+                        Icon(
+                            Icons.Filled.EventBusy,
+                            contentDescription = null,
+                            tint = if (alsoCalendar) danger else NewUiColors.onGroundDim,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
+                            Text("Και από το ημερολόγιο", color = NewUiColors.onGround, fontSize = 14.sp)
                             Text(
-                                if (totalCount == 1) {
+                                if (bookings.size == 1) {
                                     "Αυτή η δουλειά έχει εγγραφή στο ημερολόγιο."
                                 } else {
-                                    "$calendarCount από τις $totalCount έχουν εγγραφή στο ημερολόγιο."
+                                    "$calendarCount από τις ${bookings.size} έχουν εγγραφή."
                                 },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = NewUiColors.onGroundFaint,
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(top = 2.dp),
                             )
                         }
+                        NewSwitch(checked = alsoCalendar, onColor = danger, onCheckedChange = { alsoCalendar = it })
                     }
                 }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 20.dp)) {
+                    AccentButton(
+                        text = "Άκυρο",
+                        onClick = onDismiss,
+                        borderColor = NewUiColors.outline,
+                        containerColor = Color(0x66232532),
+                        contentColor = NewUiColors.onGroundMuted,
+                        glowColor = Color.Transparent,
+                        height = 46.dp,
+                        modifier = Modifier.weight(1f),
+                    )
+                    AccentButton(
+                        text = "Διαγραφή",
+                        onClick = { onConfirm(alsoCalendar && canTouchCalendar) },
+                        icon = Icons.Filled.DeleteForever,
+                        borderColor = danger.copy(alpha = 0.55f),
+                        containerColor = danger.copy(alpha = 0.16f),
+                        contentColor = danger,
+                        glowColor = danger.copy(alpha = 0.35f),
+                        height = 46.dp,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(alsoCalendar && canTouchCalendar) }) {
-                Text("Διαγραφή", color = MaterialTheme.colorScheme.error)
-            }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Άκυρο") } },
-    )
+        }
+    }
+}
+
+private const val PREVIEW_LIMIT = 4
+
+/** One line of the "about to be deleted" list, carrying the same type colour as its card. */
+@Composable
+private fun DeletePreviewRow(booking: Booking) {
+    val colors = typeColors(booking.type)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(horizontal = 12.dp, vertical = 7.dp),
+    ) {
+        Box(modifier = Modifier.fillMaxHeight().width(3.dp).clip(RoundedCornerShape(2.dp)).background(colors.barBrush))
+        Text(
+            booking.ceremonyStart.format(newPreviewDateFormatter),
+            color = colors.light,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(start = 10.dp),
+        )
+        Text(
+            booking.title.ifBlank { booking.type.displayName },
+            color = NewUiColors.onGroundMuted,
+            fontSize = 13.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f).padding(start = 10.dp),
+        )
+    }
 }
 
 /** Says what the delete actually did, and stays put when part of it failed. */
 @Composable
 private fun DeleteResultBanner(result: BulkDeleteResult, onDismiss: () -> Unit) {
     val hasFailures = result.calendarEventsFailed > 0
-    // A clean result is worth a glance, not a dismissal; a partial one has to be read, so it waits.
-    if (!hasFailures) {
-        LaunchedEffect(result) {
+    val tint = if (hasFailures) Color(0xFFFF6B6B) else NewUiColors.success
+    var visible by remember(result) { mutableStateOf(false) }
+
+    LaunchedEffect(result) {
+        visible = true
+        // A clean result is worth a glance, not a dismissal; a partial one has to be read, so it
+        // waits for the user instead of sliding away with the bad news.
+        if (!hasFailures) {
             delay(5000)
+            visible = false
+            delay(220)
             onDismiss()
         }
     }
 
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 20.dp, end = 12.dp, bottom = 10.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(
-                if (hasFailures) {
-                    MaterialTheme.colorScheme.error.copy(alpha = 0.14f)
-                } else {
-                    NewUiColors.success.copy(alpha = 0.12f)
-                },
-            )
-            .padding(start = 12.dp, top = 8.dp, bottom = 8.dp),
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(tween(260)) + slideInVertically(tween(320, easing = NewDesignEasing)) { -it / 2 },
+        exit = fadeOut(tween(200)) + slideOutVertically(tween(220)) { -it / 2 },
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                "Διαγράφηκαν ${result.deleted} ${if (result.deleted == 1) "δουλειά" else "δουλειές"}",
-                color = NewUiColors.onGround,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-            )
-            val detail = when {
-                hasFailures ->
-                    "${result.calendarEventsFailed} εγγραφές ημερολογίου δεν διαγράφηκαν - " +
-                        "μπορεί να τις έχει σβήσει ήδη κάποιος άλλος ή να λείπει η άδεια."
-                result.calendarEventsDeleted > 0 ->
-                    "Μαζί και ${result.calendarEventsDeleted} εγγραφές από το ημερολόγιο."
-                else -> "Το ημερολόγιο του κινητού δεν πειράχτηκε."
+        GlowBox(
+            glowColor = tint.copy(alpha = 0.22f),
+            blurRadius = 26.dp,
+            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 12.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Brush.horizontalGradient(listOf(tint.copy(alpha = 0.16f), Color(0xB3232532))))
+                    .border(1.dp, tint.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+                    .padding(start = 12.dp, end = 6.dp, top = 10.dp, bottom = 10.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(30.dp)
+                        .clip(CircleShape)
+                        .background(tint.copy(alpha = 0.16f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        if (hasFailures) Icons.Filled.Warning else Icons.Filled.CheckCircle,
+                        contentDescription = null,
+                        tint = tint,
+                        modifier = Modifier.size(17.dp),
+                    )
+                }
+                Column(modifier = Modifier.weight(1f).padding(start = 11.dp)) {
+                    Text(
+                        "Διαγράφηκαν ${result.deleted} ${if (result.deleted == 1) "δουλειά" else "δουλειές"}",
+                        color = NewUiColors.onGround,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    Text(
+                        when {
+                            hasFailures ->
+                                "${result.calendarEventsFailed} εγγραφές ημερολογίου δεν διαγράφηκαν - " +
+                                    "μπορεί να τις έχει σβήσει ήδη κάποιος άλλος ή να λείπει η άδεια."
+                            result.calendarEventsDeleted > 0 ->
+                                "Μαζί και ${result.calendarEventsDeleted} εγγραφές από το ημερολόγιο."
+                            else -> "Το ημερολόγιο του κινητού δεν πειράχτηκε."
+                        },
+                        color = if (hasFailures) tint else NewUiColors.onGroundDim,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+                NewIconButton(
+                    icon = Icons.Filled.Close,
+                    contentDescription = "Κλείσιμο",
+                    onClick = onDismiss,
+                    size = 32.dp,
+                    iconSize = 15.dp,
+                    containerColor = Color.Transparent,
+                    borderColor = Color.Transparent,
+                )
             }
-            Text(
-                detail,
-                color = if (hasFailures) MaterialTheme.colorScheme.error else NewUiColors.onGroundDim,
-                fontSize = 11.sp,
-            )
         }
-        NewIconButton(
-            icon = Icons.Filled.Close,
-            contentDescription = "Κλείσιμο",
-            onClick = onDismiss,
-            size = 34.dp,
-            iconSize = 16.dp,
-        )
     }
 }
