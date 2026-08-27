@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,6 +28,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Celebration
 import androidx.compose.material.icons.filled.FlightTakeoff
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -35,6 +39,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -44,7 +49,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -74,15 +83,52 @@ fun BookingListScreen(
     val bookings by viewModel.bookings.collectAsState()
     val filter by viewModel.filter.collectAsState()
     val pendingDelete by viewModel.pendingDelete.collectAsState()
+    val selectedIds by viewModel.selectedIds.collectAsState()
+    val isSelectionMode by viewModel.isSelectionMode.collectAsState()
+    val pendingBulkDelete by viewModel.pendingBulkDelete.collectAsState()
     val unseenChangelogEntries by viewModel.unseenChangelogEntries.collectAsState()
+    val deleteResult by viewModel.lastDeleteResult.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    LaunchedEffect(deleteResult) {
+        val result = deleteResult ?: return@LaunchedEffect
+        val message = buildString {
+            append("Διαγράφηκαν ${result.deleted} ")
+            append(if (result.deleted == 1) "δουλειά" else "δουλειές")
+            when {
+                result.calendarEventsFailed > 0 ->
+                    append(" · ${result.calendarEventsFailed} εγγραφές ημερολογίου ΔΕΝ διαγράφηκαν")
+                result.calendarEventsDeleted > 0 ->
+                    append(" · ${result.calendarEventsDeleted} και από το ημερολόγιο")
+            }
+        }
+        android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+        viewModel.dismissDeleteResult()
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("JobClosure") },
+                title = { Text(if (isSelectionMode) "${selectedIds.size} επιλεγμένες" else "JobClosure") },
                 actions = {
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Ρυθμίσεις")
+                    if (isSelectionMode) {
+                        IconButton(onClick = { viewModel.selectAllVisible() }) {
+                            Icon(Icons.Filled.SelectAll, contentDescription = "Επιλογή όλων")
+                        }
+                        IconButton(onClick = { viewModel.requestBulkDelete() }) {
+                            Icon(
+                                Icons.Filled.Delete,
+                                contentDescription = "Διαγραφή επιλεγμένων",
+                                tint = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                        IconButton(onClick = { viewModel.clearSelection() }) {
+                            Icon(Icons.Filled.Close, contentDescription = "Έξοδος από την επιλογή")
+                        }
+                    } else {
+                        IconButton(onClick = onOpenSettings) {
+                            Icon(Icons.Filled.Settings, contentDescription = "Ρυθμίσεις")
+                        }
                     }
                 },
             )
@@ -138,8 +184,13 @@ fun BookingListScreen(
                             items(dayBookings, key = { it.id }) { booking ->
                                 BookingRow(
                                     booking,
-                                    onClick = { onOpenBooking(booking.id) },
-                                    onLongPress = { viewModel.requestDelete(booking) },
+                                    selected = booking.id in selectedIds,
+                                    onClick = {
+                                        if (isSelectionMode) viewModel.toggleSelection(booking) else onOpenBooking(booking.id)
+                                    },
+                                    onLongPress = {
+                                        if (isSelectionMode) viewModel.clearSelection() else viewModel.startSelection(booking)
+                                    },
                                     modifier = Modifier.animateItem(),
                                 )
                             }
@@ -151,19 +202,27 @@ fun BookingListScreen(
     }
 
     pendingDelete?.let { booking ->
-        AlertDialog(
-            onDismissRequest = { viewModel.dismissDeleteRequest() },
-            icon = { Icon(Icons.Filled.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-            title = { Text("Διαγραφή δουλειάς") },
-            text = { Text("Είσαι σίγουρος ότι θέλεις να διαγράψεις οριστικά τη δουλειά \"${booking.title}\";") },
-            confirmButton = {
-                TextButton(onClick = { viewModel.confirmDelete() }) {
-                    Text("Διαγραφή", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { viewModel.dismissDeleteRequest() }) { Text("Άκυρο") }
-            },
+        val hasCalendarEvent = booking.churchCalendarEventId != null || booking.receptionCalendarEventId != null
+        ClassicDeleteDialog(
+            title = "Διαγραφή δουλειάς",
+            body = "Να διαγραφεί οριστικά η δουλειά \"${booking.title}\";",
+            calendarCount = if (hasCalendarEvent) 1 else 0,
+            totalCount = 1,
+            calendarPermissionGranted = true,
+            onDismiss = { viewModel.dismissDeleteRequest() },
+            onConfirm = { alsoCalendar -> viewModel.confirmDelete(alsoCalendar) },
+        )
+    }
+
+    pendingBulkDelete?.let { request ->
+        ClassicDeleteDialog(
+            title = "Διαγραφή ${request.bookings.size} δουλειών",
+            body = "Θα διαγραφούν οριστικά από την εφαρμογή.",
+            calendarCount = request.withCalendarEvents,
+            totalCount = request.bookings.size,
+            calendarPermissionGranted = request.calendarPermissionGranted,
+            onDismiss = { viewModel.dismissBulkDelete() },
+            onConfirm = { alsoCalendar -> viewModel.confirmBulkDelete(alsoCalendar) },
         )
     }
 
@@ -176,6 +235,7 @@ fun BookingListScreen(
 @Composable
 private fun BookingRow(
     booking: Booking,
+    selected: Boolean,
     onClick: () -> Unit,
     onLongPress: () -> Unit,
     modifier: Modifier = Modifier,
@@ -192,7 +252,11 @@ private fun BookingRow(
                     onLongPress()
                 },
             ),
-        colors = CardDefaults.cardColors(),
+        colors = if (selected) {
+            CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+        } else {
+            CardDefaults.cardColors()
+        },
     ) {
         Row(modifier = Modifier.fillMaxWidth()) {
             Box(
@@ -293,4 +357,67 @@ private fun IconPill(
         Icon(icon, contentDescription = label, tint = contentColor, modifier = Modifier.size(14.dp))
         Text(label, style = MaterialTheme.typography.labelSmall, color = contentColor)
     }
+}
+
+
+/** Classic-design twin of the restyled screen's delete dialog - same choice, same counts. */
+@Composable
+private fun ClassicDeleteDialog(
+    title: String,
+    body: String,
+    calendarCount: Int,
+    totalCount: Int,
+    calendarPermissionGranted: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: (alsoDeleteFromCalendar: Boolean) -> Unit,
+) {
+    val canTouchCalendar = calendarPermissionGranted && calendarCount > 0
+    var alsoCalendar by remember(title) { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Filled.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(body)
+                when {
+                    calendarCount == 0 -> Text(
+                        "Καμία από αυτές δεν έχει εγγραφή στο ημερολόγιο του κινητού.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    !calendarPermissionGranted -> Text(
+                        "Δεν υπάρχει άδεια ημερολογίου, οπότε οι εγγραφές στο ημερολόγιο θα μείνουν.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                    else -> Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().clickable { alsoCalendar = !alsoCalendar },
+                    ) {
+                        Checkbox(checked = alsoCalendar, onCheckedChange = { alsoCalendar = it })
+                        Column(modifier = Modifier.padding(start = 4.dp)) {
+                            Text("Διαγραφή και από το ημερολόγιο")
+                            Text(
+                                if (totalCount == 1) {
+                                    "Αυτή η δουλειά έχει εγγραφή στο ημερολόγιο."
+                                } else {
+                                    "$calendarCount από τις $totalCount έχουν εγγραφή στο ημερολόγιο."
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(alsoCalendar && canTouchCalendar) }) {
+                Text("Διαγραφή", color = MaterialTheme.colorScheme.error)
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Άκυρο") } },
+    )
 }

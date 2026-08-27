@@ -142,6 +142,13 @@ fun CalendarImportScreen(
                             text = "${state.candidates.size} βρέθηκαν - ${state.selectedCount} επιλεγμένα",
                             modifier = Modifier.weight(1f),
                         )
+                        // Distinct from "Επιλογή όλων", which only ticks what the filters left:
+                        // this drops the filters first, so it means every year and every month.
+                        if (!state.isShowingEverything) {
+                            TextButton(onClick = { viewModel.selectEverything() }) {
+                                Text("Ολικό import", color = NewUiColors.success, fontSize = 12.sp)
+                            }
+                        }
                         TextButton(onClick = { viewModel.setAllSelected(state.selectedCount < state.selectableCount) }) {
                             Text(
                                 if (state.selectedCount < state.selectableCount) "Επιλογή όλων" else "Καθαρισμός",
@@ -251,8 +258,35 @@ private fun ImportFilters(
                 }
             }
         }
+
+        if (state.availableMonths.size > 1) {
+            NewSectionLabel(text = "Μήνας", modifier = Modifier.padding(top = 10.dp, bottom = 6.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterPill(
+                    text = "Όλοι",
+                    selected = state.selectedMonth == null,
+                    accent = palette,
+                    onClick = { viewModel.setMonth(null) },
+                )
+                state.availableMonths.forEach { month ->
+                    FilterPill(
+                        text = monthLabel(month),
+                        selected = state.selectedMonth == month,
+                        accent = palette,
+                        onClick = { viewModel.setMonth(if (state.selectedMonth == month) null else month) },
+                    )
+                }
+            }
+        }
     }
 }
+
+/** Short Greek month name, e.g. 3 -> "Μάρ". Only months that actually contain something are ever
+ *  passed here, so a missing month is a real gap in the calendar rather than a formatting case. */
+private fun monthLabel(month: Int): String =
+    java.time.Month.of(month)
+        .getDisplayName(java.time.format.TextStyle.SHORT, Locale("el", "GR"))
+        .replaceFirstChar { it.titlecase(Locale("el", "GR")) }
 
 @Composable
 private fun FilterPill(text: String, selected: Boolean, accent: AccentPalette, onClick: () -> Unit) {

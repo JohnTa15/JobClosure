@@ -25,6 +25,11 @@ interface BookingDao {
     @Delete
     suspend fun delete(booking: Booking)
 
+    /** One statement rather than a delete per row, so a bulk delete is a single transaction and
+     *  the list observers see one update instead of flickering down N times. */
+    @Query("DELETE FROM bookings WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<Long>)
+
     /**
      * Any existing booking whose busy window overlaps [start, end), excluding [excludeId]
      * (used when editing a booking so it doesn't conflict with itself).

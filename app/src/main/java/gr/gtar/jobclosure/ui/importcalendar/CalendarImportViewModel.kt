@@ -41,9 +41,16 @@ data class CalendarImportUiState(
     /** Years that actually contain something, newest first. Null [selectedYear] means all of them. */
     val availableYears: List<Int> = emptyList(),
     val selectedYear: Int? = null,
+    /** Months (1-12) present within the current year filter, in calendar order. Null
+     *  [selectedMonth] means the whole year - which is what "ολικό import" runs against. */
+    val availableMonths: List<Int> = emptyList(),
+    val selectedMonth: Int? = null,
 ) {
     val selectableCount: Int get() = candidates.count { !it.alreadyImported }
     val selectedCount: Int get() = candidates.count { it.selected && !it.alreadyImported }
+
+    /** True when nothing is narrowing the scan, i.e. what is listed is everything found. */
+    val isShowingEverything: Boolean get() = selectedYear == null && selectedMonth == null
 }
 
 /** How far back to look. Sacraments booked years ago are exactly the point of this screen. */
@@ -132,8 +139,23 @@ class CalendarImportViewModel(
     }
 
     fun setYear(year: Int?) {
-        _uiState.value = _uiState.value.copy(selectedYear = year)
+        // Changing year drops the month with it: "Μάρτιος" chosen under 2019 means nothing under
+        // 2024, and silently carrying it over would hide most of the new year's results.
+        _uiState.value = _uiState.value.copy(selectedYear = year, selectedMonth = null)
         applyFilters()
+    }
+
+    fun setMonth(month: Int?) {
+        _uiState.value = _uiState.value.copy(selectedMonth = month)
+        applyFilters()
+    }
+
+    /** Clears both filters and ticks everything that is not already in the app - the one-press
+     *  "import the lot" the year-by-year flow otherwise turns into a dozen passes. */
+    fun selectEverything() {
+        _uiState.value = _uiState.value.copy(selectedYear = null, selectedMonth = null)
+        applyFilters()
+        setAllSelected(true)
     }
 
     /**
@@ -152,8 +174,14 @@ class CalendarImportViewModel(
             .sortedDescending()
         val year = state.selectedYear?.takeIf { it in years }
 
-        val candidates = fromSelectedCalendars
-            .filter { year == null || yearOf(it.startMillis, zone) == year }
+        val inYear = fromSelectedCalendars.filter { year == null || yearOf(it.startMillis, zone) == year }
+        // Months are offered for whatever the year filter left, so picking a month can never empty
+        // the list on its own.
+        val months = inYear.map { monthOf(it.startMillis, zone) }.distinct().sorted()
+        val month = state.selectedMonth?.takeIf { it in months }
+
+        val candidates = inYear
+            .filter { month == null || monthOf(it.startMillis, zone) == month }
             .distinctBy { contentKey(it.startMillis, it.type.name, it.clientName) }
             .map { candidate ->
                 val already = candidate.calendarEventId in knownEventIds ||
@@ -165,11 +193,16 @@ class CalendarImportViewModel(
             candidates = candidates,
             availableYears = years,
             selectedYear = year,
+            availableMonths = months,
+            selectedMonth = month,
         )
     }
 
     private fun yearOf(startMillis: Long, zone: ZoneId): Int =
         Instant.ofEpochMilli(startMillis).atZone(zone).year
+
+    private fun monthOf(startMillis: Long, zone: ZoneId): Int =
+        Instant.ofEpochMilli(startMillis).atZone(zone).monthValue
 
     /**
      * Removes jobs already saved twice - the state a shared calendar left behind before the scan

@@ -30,4 +30,9 @@ class BookingRepository(private val dao: BookingDao) {
     }
 
     suspend fun delete(booking: Booking) = dao.delete(booking)
+
+    suspend fun deleteAll(bookings: List<Booking>) {
+        if (bookings.isEmpty()) return
+        dao.deleteByIds(bookings.map { it.id })
+    }
 }
