@@ -129,59 +129,68 @@ fun CalendarImportScreen(
                 state.isScanning -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
-                // The filters stay on screen even when they leave nothing to show - hiding them
-                // there would strand the user with an empty list and no way to widen it again.
+                // Filters, counters and results scroll together in one list. With a dozen
+                // calendars on the device the filter block alone is taller than the screen, and
+                // laying the results out below it in a plain Column pushed the import button off
+                // the bottom with nothing to scroll it back into view. Only the import button
+                // stays outside the scroll, pinned where it can always be reached.
                 else -> Column(modifier = Modifier.fillMaxSize()) {
-                    ImportFilters(state = state, palette = palette, viewModel = viewModel)
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                    LazyColumn(
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 12.dp),
                     ) {
-                        NewSectionLabel(
-                            text = "${state.candidates.size} βρέθηκαν - ${state.selectedCount} επιλεγμένα",
-                            modifier = Modifier.weight(1f),
-                        )
-                        // Distinct from "Επιλογή όλων", which only ticks what the filters left:
-                        // this drops the filters first, so it means every year and every month.
-                        if (!state.isShowingEverything) {
-                            TextButton(onClick = { viewModel.selectEverything() }) {
-                                Text("Ολικό import", color = NewUiColors.success, fontSize = 12.sp)
+                        item(key = "filters") {
+                            ImportFilters(state = state, palette = palette, viewModel = viewModel)
+                        }
+
+                        item(key = "actions") {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                            ) {
+                                NewSectionLabel(
+                                    text = "${state.candidates.size} βρέθηκαν - ${state.selectedCount} επιλεγμένα",
+                                    modifier = Modifier.weight(1f),
+                                )
+                                // Distinct from "Επιλογή όλων", which only ticks what the filters left:
+                                // this drops the filters first, so it means every year and every month.
+                                if (!state.isShowingEverything) {
+                                    TextButton(onClick = { viewModel.selectEverything() }) {
+                                        Text("Ολικό import", color = NewUiColors.success, fontSize = 12.sp)
+                                    }
+                                }
+                                TextButton(onClick = { viewModel.setAllSelected(state.selectedCount < state.selectableCount) }) {
+                                    Text(
+                                        if (state.selectedCount < state.selectableCount) "Επιλογή όλων" else "Καθαρισμός",
+                                        color = palette.accent,
+                                        fontSize = 12.sp,
+                                    )
+                                }
                             }
                         }
-                        TextButton(onClick = { viewModel.setAllSelected(state.selectedCount < state.selectableCount) }) {
-                            Text(
-                                if (state.selectedCount < state.selectableCount) "Επιλογή όλων" else "Καθαρισμός",
-                                color = palette.accent,
-                                fontSize = 12.sp,
-                            )
-                        }
-                    }
 
-                    if (state.candidates.isEmpty()) {
-                        Box(Modifier.weight(1f).fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                            Text(
-                                if (state.calendars.isNotEmpty() && state.selectedCalendarIds.isEmpty()) {
-                                    "Δεν έχει επιλεγεί κανένα ημερολόγιο."
-                                } else {
-                                    "Δεν βρέθηκαν γάμοι ή βαφτίσεις με αυτά τα φίλτρα."
-                                },
-                                color = NewUiColors.onGroundMuted,
-                                fontSize = 13.sp,
-                                textAlign = TextAlign.Center,
-                            )
-                        }
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier.weight(1f).padding(horizontal = 20.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 10.dp),
-                        ) {
+                        if (state.candidates.isEmpty()) {
+                            item(key = "empty") {
+                                Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                                    Text(
+                                        if (state.selectedCalendarIds.isEmpty()) {
+                                            "Διάλεξε ένα ή περισσότερα ημερολόγια για να δεις τι βρέθηκε."
+                                        } else {
+                                            "Δεν βρέθηκαν γάμοι ή βαφτίσεις με αυτά τα φίλτρα."
+                                        },
+                                        color = NewUiColors.onGroundMuted,
+                                        fontSize = 13.sp,
+                                        textAlign = TextAlign.Center,
+                                    )
+                                }
+                            }
+                        } else {
                             items(state.candidates, key = { it.parsed.calendarEventId }) { candidate ->
                                 CandidateRow(
                                     candidate = candidate,
                                     accent = palette.accent,
                                     onToggle = { viewModel.toggle(candidate.parsed.calendarEventId) },
+                                    modifier = Modifier.padding(horizontal = 20.dp).padding(top = 10.dp),
                                 )
                             }
                         }
@@ -224,9 +233,27 @@ private fun ImportFilters(
     viewModel: CalendarImportViewModel,
 ) {
     Column(modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 6.dp)) {
-        if (state.calendars.size > 1) {
-            NewSectionLabel(text = "Ημερολόγια", modifier = Modifier.padding(bottom = 6.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Nothing is ticked until the user says so: a phone carrying a dozen subscribed calendars
+        // (name days, holidays, a partner's account) would otherwise open on a wall of candidates
+        // that all have to be untangled by hand.
+        if (state.calendars.isNotEmpty()) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                NewSectionLabel(
+                    text = "Ημερολόγια - ${state.selectedCalendarIds.size}/${state.calendars.size}",
+                    modifier = Modifier.weight(1f),
+                )
+                if (state.calendars.size > 1) {
+                    val allSelected = state.selectedCalendarIds.size == state.calendars.size
+                    TextButton(onClick = { viewModel.setAllCalendarsSelected(!allSelected) }) {
+                        Text(
+                            if (allSelected) "Κανένα" else "Όλα",
+                            color = palette.accent,
+                            fontSize = 12.sp,
+                        )
+                    }
+                }
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 2.dp)) {
                 state.calendars.forEach { calendar ->
                     val selected = calendar.id in state.selectedCalendarIds
                     FilterPill(
@@ -326,14 +353,19 @@ private fun CenteredNote(text: String) {
 }
 
 @Composable
-private fun CandidateRow(candidate: ImportCandidate, accent: Color, onToggle: () -> Unit) {
+private fun CandidateRow(
+    candidate: ImportCandidate,
+    accent: Color,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val parsed = candidate.parsed
     val colors = typeColors(parsed.type)
     val start = Instant.ofEpochMilli(parsed.startMillis).atZone(ZoneId.systemDefault()).toLocalDateTime()
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(Color(0x73232532))

@@ -114,12 +114,17 @@ class CalendarImportViewModel(
                 contentKey(Booking.epochMinute(it.ceremonyStart) * 60_000L, it.type.name, it.title)
             }.toSet()
 
-            // A first scan looks everywhere; a rescan keeps whatever the user had narrowed it to,
+            // A first scan starts with nothing ticked - phones carry a dozen calendars (name days,
+            // holidays, a shared account) and reading them all at once buries the handful that
+            // actually hold sacraments. The one exception is a device with a single calendar,
+            // where there is no choice to make. A rescan keeps whatever the user had picked,
             // dropping any calendar that has since disappeared from the device.
-            val previouslySelected = _uiState.value.selectedCalendarIds
-            val selectedIds = previouslySelected
-                .intersect(calendars.map { it.id }.toSet())
-                .ifEmpty { calendars.map { it.id }.toSet() }
+            val calendarIds = calendars.map { it.id }.toSet()
+            val selectedIds = when {
+                _uiState.value.hasScanned -> _uiState.value.selectedCalendarIds.intersect(calendarIds)
+                calendars.size == 1 -> calendarIds
+                else -> emptySet()
+            }
 
             _uiState.value = _uiState.value.copy(
                 isScanning = false,
@@ -135,6 +140,14 @@ class CalendarImportViewModel(
         val current = _uiState.value.selectedCalendarIds
         val updated = if (selected) current + calendarId else current - calendarId
         _uiState.value = _uiState.value.copy(selectedCalendarIds = updated)
+        applyFilters()
+    }
+
+    /** Ticks or clears every calendar at once - the way back from "Κανένα" without a dozen taps. */
+    fun setAllCalendarsSelected(selected: Boolean) {
+        _uiState.value = _uiState.value.copy(
+            selectedCalendarIds = if (selected) _uiState.value.calendars.map { it.id }.toSet() else emptySet(),
+        )
         applyFilters()
     }
 
