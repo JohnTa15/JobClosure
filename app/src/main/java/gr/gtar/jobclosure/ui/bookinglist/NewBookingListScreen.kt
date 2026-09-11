@@ -37,6 +37,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Celebration
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
@@ -50,6 +52,7 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -136,6 +139,8 @@ fun NewBookingListScreen(
 ) {
     val bookings by viewModel.bookings.collectAsState()
     val filter by viewModel.filter.collectAsState()
+    val period by viewModel.period.collectAsState()
+    val sort by viewModel.sort.collectAsState()
     val pendingDelete by viewModel.pendingDelete.collectAsState()
     val selectedIds by viewModel.selectedIds.collectAsState()
     val isSelectionMode by viewModel.isSelectionMode.collectAsState()
@@ -240,18 +245,44 @@ fun NewBookingListScreen(
                 onSelect = { viewModel.setFilter(it) },
             )
 
+            ViewChipsRow(
+                period = period,
+                sort = sort,
+                accent = palette.accent,
+                onSelectPeriod = { viewModel.setPeriod(it) },
+                onToggleSort = {
+                    viewModel.setSort(
+                        if (sort == BookingSort.NEWEST_FIRST) BookingSort.OLDEST_FIRST else BookingSort.NEWEST_FIRST,
+                    )
+                },
+            )
+
             deleteResult?.let { result ->
                 DeleteResultBanner(result = result, onDismiss = { viewModel.dismissDeleteResult() })
             }
 
             if (bookings.isEmpty()) {
+                // An empty list under a filter is not an empty app: without saying which, the user
+                // is left thinking the jobs are gone rather than merely hidden.
+                val isFiltered = filter != BookingFilter.ALL || period != BookingPeriod.ALL
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        "Δεν υπάρχουν κλεισμένες δουλειές ακόμα.\nΠάτησε + για να προσθέσεις μία.",
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        color = NewUiColors.onGroundDim,
-                        modifier = Modifier.padding(horizontal = 32.dp),
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            if (isFiltered) {
+                                "Καμία δουλειά με αυτά τα φίλτρα."
+                            } else {
+                                "Δεν υπάρχουν κλεισμένες δουλειές ακόμα.\nΠάτησε + για να προσθέσεις μία."
+                            },
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            color = NewUiColors.onGroundDim,
+                            modifier = Modifier.padding(horizontal = 32.dp),
+                        )
+                        if (isFiltered) {
+                            TextButton(onClick = { viewModel.resetView() }) {
+                                Text("Καθαρισμός φίλτρων", color = palette.accent, fontSize = 13.sp)
+                            }
+                        }
+                    }
                 }
             } else {
                 val grouped = bookings.groupBy { it.ceremonyStart.toLocalDate() }
@@ -384,7 +415,7 @@ private fun FilterChipsRow(filter: BookingFilter, accent: Color, onSelect: (Book
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState())
-            .padding(start = 20.dp, end = 20.dp, bottom = 14.dp),
+            .padding(start = 20.dp, end = 20.dp, bottom = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         BookingFilter.entries.forEach { option ->
@@ -401,6 +432,67 @@ private fun FilterChipsRow(filter: BookingFilter, accent: Color, onSelect: (Book
                 onClick = { onSelect(option) },
             )
         }
+    }
+}
+
+/**
+ * The second half of "how do I want to see this": which part of the calendar, and in which
+ * direction. Kept on its own row - merging it with the type chips would read as one list of
+ * mutually exclusive options, which these are not.
+ */
+@Composable
+private fun ViewChipsRow(
+    period: BookingPeriod,
+    sort: BookingSort,
+    accent: Color,
+    onSelectPeriod: (BookingPeriod) -> Unit,
+    onToggleSort: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(start = 20.dp, end = 20.dp, bottom = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        BookingPeriod.entries.forEach { option ->
+            FilterPill(
+                label = option.label,
+                selected = period == option,
+                underlineColor = accent,
+                onClick = { onSelectPeriod(option) },
+            )
+        }
+        SortPill(sort = sort, accent = accent, onClick = onToggleSort)
+    }
+}
+
+/** One pill that flips the order, rather than two that look like a filter: the list is always in
+ *  one of the two directions, so there is nothing to switch off. */
+@Composable
+private fun SortPill(sort: BookingSort, accent: Color, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(Color(0xB3232532))
+            .border(1.dp, NewUiColors.outline, RoundedCornerShape(999.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 13.dp, vertical = 7.dp),
+    ) {
+        Icon(
+            if (sort == BookingSort.NEWEST_FIRST) Icons.Filled.ArrowDownward else Icons.Filled.ArrowUpward,
+            contentDescription = null,
+            tint = accent,
+            modifier = Modifier.size(14.dp),
+        )
+        Text(
+            sort.label,
+            color = NewUiColors.onGround,
+            fontSize = 13.sp,
+            modifier = Modifier.padding(start = 6.dp),
+        )
     }
 }
 

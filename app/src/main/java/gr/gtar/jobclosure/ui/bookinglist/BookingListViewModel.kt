@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 /** What a bulk delete was asked to do, and what it managed. */
 data class BulkDeleteRequest(
@@ -42,6 +43,21 @@ enum class BookingFilter(val label: String) {
     RECEPTION("Με Δεξίωση"),
 }
 
+/** Which part of the calendar to show. Separate from [BookingFilter] because it answers a
+ *  different question - "what kind of job" versus "when" - and the two get combined. */
+enum class BookingPeriod(val label: String) {
+    ALL("Όλες"),
+    UPCOMING("Επόμενες"),
+    PAST("Περασμένες"),
+}
+
+/** Newest first is the default: after importing a decade of history, the jobs worth looking at
+ *  are the recent ones, and they used to sit at the very bottom of a list starting in 2011. */
+enum class BookingSort(val label: String) {
+    NEWEST_FIRST("Νεότερα πρώτα"),
+    OLDEST_FIRST("Παλαιότερα πρώτα"),
+}
+
 class BookingListViewModel(
     application: Application,
     private val repository: BookingRepository,
@@ -50,6 +66,12 @@ class BookingListViewModel(
 
     private val activeFilter = MutableStateFlow(BookingFilter.ALL)
     val filter: StateFlow<BookingFilter> = activeFilter
+
+    private val activePeriod = MutableStateFlow(BookingPeriod.ALL)
+    val period: StateFlow<BookingPeriod> = activePeriod
+
+    private val activeSort = MutableStateFlow(BookingSort.NEWEST_FIRST)
+    val sort: StateFlow<BookingSort> = activeSort
 
     private val _pendingDelete = MutableStateFlow<Booking?>(null)
     val pendingDelete: StateFlow<Booking?> = _pendingDelete
@@ -88,18 +110,51 @@ class BookingListViewModel(
         viewModelScope.launch { settingsRepository.setThemeKey(key) }
     }
 
+    /**
+     * What the list shows: type, period and order, applied in that sequence. The repository query
+     * is ordered oldest-first (it is also what the overlap checks read), so the order the user
+     * sees is decided here rather than in the database.
+     */
     val bookings: StateFlow<List<Booking>> =
-        combine(repository.observeAll(), activeFilter) { all, filter ->
-            when (filter) {
+        combine(repository.observeAll(), activeFilter, activePeriod, activeSort) { all, filter, period, sort ->
+            val byType = when (filter) {
                 BookingFilter.ALL -> all
                 BookingFilter.WEDDING_BAPTISM -> all.filter { it.type.isChurchSacrament }
                 BookingFilter.DRONE -> all.filter { it.hasDrone }
                 BookingFilter.RECEPTION -> all.filter { it.hasReception }
             }
+            // A job happening today stays under "Επόμενες" all day: it is still ahead of the user
+            // until it is over, and dropping it out of the list at its start time would hide the
+            // one entry they are most likely to open.
+            val today = LocalDate.now()
+            val byPeriod = when (period) {
+                BookingPeriod.ALL -> byType
+                BookingPeriod.UPCOMING -> byType.filter { !it.ceremonyStart.toLocalDate().isBefore(today) }
+                BookingPeriod.PAST -> byType.filter { it.ceremonyStart.toLocalDate().isBefore(today) }
+            }
+            when (sort) {
+                BookingSort.NEWEST_FIRST -> byPeriod.sortedByDescending { it.ceremonyStart }
+                BookingSort.OLDEST_FIRST -> byPeriod.sortedBy { it.ceremonyStart }
+            }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun setFilter(filter: BookingFilter) {
         activeFilter.value = filter
+    }
+
+    fun setPeriod(period: BookingPeriod) {
+        activePeriod.value = period
+    }
+
+    fun setSort(sort: BookingSort) {
+        activeSort.value = sort
+    }
+
+    /** Back to the default view - one press instead of putting three chips back by hand. */
+    fun resetView() {
+        activeFilter.value = BookingFilter.ALL
+        activePeriod.value = BookingPeriod.ALL
+        activeSort.value = BookingSort.NEWEST_FIRST
     }
 
     fun requestDelete(booking: Booking) {

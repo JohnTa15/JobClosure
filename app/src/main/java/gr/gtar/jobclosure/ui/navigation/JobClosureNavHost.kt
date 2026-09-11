@@ -7,9 +7,16 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -40,6 +47,7 @@ import gr.gtar.jobclosure.ui.settings.SettingsScreen
 import gr.gtar.jobclosure.ui.settings.SettingsViewModel
 import gr.gtar.jobclosure.ui.theme.AppTheme
 import gr.gtar.jobclosure.ui.theme.AppThemePalettes
+import gr.gtar.jobclosure.ui.theme.NewUiColors
 
 private const val ROUTE_LIST = "list"
 private const val ROUTE_SETTINGS = "settings"
@@ -73,7 +81,19 @@ fun JobClosureNavHost(app: JobClosureApp) {
     val settings by app.settingsRepository.settings.collectAsState(initial = AppSettings())
     val useNewDesign = settings.useNewDesign
 
+    // From targetSdk 35 on, Android 15 draws every app edge to edge whether it asks to or not, so
+    // without this the status bar sat over the screen titles and the gesture bar over the buttons
+    // pinned to the bottom - the import button and "Νέα δουλειά" among them. The insets pad the
+    // content, while the background keeps the app's own ground colour under the system bars so the
+    // padding does not read as a bare strip. On Android 14 and older the insets are zero, because
+    // the system already sizes the window below the bars.
     NavHost(
+        // background before the inset padding, so it paints the whole window while only the
+        // content is pushed clear of the bars.
+        modifier = Modifier
+            .fillMaxSize()
+            .background(if (useNewDesign) NewUiColors.ground else MaterialTheme.colorScheme.background)
+            .windowInsetsPadding(WindowInsets.safeDrawing),
         navController = navController,
         startDestination = ROUTE_LIST,
         enterTransition = {
