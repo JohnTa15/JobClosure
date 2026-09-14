@@ -56,7 +56,6 @@ data class AppUiState(
     val updateCheckResult: UpdateCheckResult? = null,
     val isCheckingForUpdate: Boolean = false,
     val filter: BookingFilter = BookingFilter.ALL,
-    val pendingDelete: Booking? = null,
 ) {
     /** [bookings] narrowed down by the active list filter chip. */
     val filteredBookings: kotlin.collections.List<Booking>
@@ -266,18 +265,6 @@ class AppViewModel(private val scope: CoroutineScope) {
         }
     }
 
-    fun deleteBooking(booking: Booking) {
-        val calendarId = currentSettings.calendarId
-        if (calendarId.isBlank()) return
-        scope.launch {
-            _state.update { it.copy(isLoading = true) }
-            runCatching { repository.deleteBooking(calendarId, booking) }
-                .onSuccess { _state.update { it.copy(isLoading = false, screen = Screen.List) } }
-                .onFailure { error -> reportFailure("Αποτυχία διαγραφής", error) }
-            loadBookings()
-        }
-    }
-
     fun dismissError() {
         _state.update { it.copy(errorMessage = null) }
     }
@@ -348,20 +335,6 @@ class AppViewModel(private val scope: CoroutineScope) {
 
     fun setFilter(filter: BookingFilter) {
         _state.update { it.copy(filter = filter) }
-    }
-
-    fun requestDelete(booking: Booking) {
-        _state.update { it.copy(pendingDelete = booking) }
-    }
-
-    fun dismissDeleteRequest() {
-        _state.update { it.copy(pendingDelete = null) }
-    }
-
-    fun confirmDelete() {
-        val booking = _state.value.pendingDelete ?: return
-        _state.update { it.copy(pendingDelete = null) }
-        deleteBooking(booking)
     }
 
     fun checkForUpdate() {

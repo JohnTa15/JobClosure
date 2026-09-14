@@ -42,6 +42,8 @@ import gr.gtar.jobclosure.ui.dagr.DagrScreen
 import gr.gtar.jobclosure.ui.dagr.DagrViewModel
 import gr.gtar.jobclosure.ui.importcalendar.CalendarImportScreen
 import gr.gtar.jobclosure.ui.importcalendar.CalendarImportViewModel
+import gr.gtar.jobclosure.ui.activity.ActivityScreen
+import gr.gtar.jobclosure.ui.activity.ActivityViewModel
 import gr.gtar.jobclosure.ui.settings.NewSettingsScreen
 import gr.gtar.jobclosure.ui.settings.SettingsScreen
 import gr.gtar.jobclosure.ui.settings.SettingsViewModel
@@ -52,6 +54,7 @@ import gr.gtar.jobclosure.ui.theme.NewUiColors
 private const val ROUTE_LIST = "list"
 private const val ROUTE_SETTINGS = "settings"
 private const val ROUTE_IMPORT_CALENDAR = "import-calendar"
+private const val ROUTE_ACTIVITY = "activity"
 private const val ARG_BOOKING_ID = "bookingId"
 private const val ROUTE_EDIT = "edit/{$ARG_BOOKING_ID}"
 private const val ROUTE_DETAIL = "detail/{$ARG_BOOKING_ID}"
@@ -132,7 +135,14 @@ fun JobClosureNavHost(app: JobClosureApp) {
         composable(ROUTE_LIST) {
             val viewModel: BookingListViewModel = viewModel(
                 factory = viewModelFactory {
-                    initializer { BookingListViewModel(app, app.bookingRepository, app.settingsRepository) }
+                    initializer {
+                        BookingListViewModel(
+                            app,
+                            app.bookingRepository,
+                            app.settingsRepository,
+                            app.activityRepository,
+                        )
+                    }
                 },
             )
             if (useNewDesign) {
@@ -165,6 +175,7 @@ fun JobClosureNavHost(app: JobClosureApp) {
                             application = app,
                             repository = app.bookingRepository,
                             settingsRepository = app.settingsRepository,
+                            activityRepository = app.activityRepository,
                             placeSearchRepository = app.placeSearchRepository,
                             bookingId = if (isNew) null else bookingId,
                         )
@@ -263,12 +274,14 @@ fun JobClosureNavHost(app: JobClosureApp) {
             if (useNewDesign) {
                 NewSettingsScreen(
                     viewModel = viewModel,
+                    onOpenActivity = { navController.navigate(ROUTE_ACTIVITY) },
                     onBack = { navController.popBackStack() },
                     onImportFromCalendar = { navController.navigate(ROUTE_IMPORT_CALENDAR) },
                 )
             } else {
                 SettingsScreen(
                     viewModel = viewModel,
+                    onOpenActivity = { navController.navigate(ROUTE_ACTIVITY) },
                     onBack = { navController.popBackStack() },
                     onImportFromCalendar = { navController.navigate(ROUTE_IMPORT_CALENDAR) },
                 )
@@ -278,10 +291,23 @@ fun JobClosureNavHost(app: JobClosureApp) {
         composable(ROUTE_IMPORT_CALENDAR) {
             val viewModel: CalendarImportViewModel = viewModel(
                 factory = viewModelFactory {
-                    initializer { CalendarImportViewModel(app, app.bookingRepository) }
+                    initializer { CalendarImportViewModel(app, app.bookingRepository, app.activityRepository) }
                 },
             )
             CalendarImportScreen(
+                viewModel = viewModel,
+                palette = AppThemePalettes.getValue(AppTheme.fromKey(settings.themeKey)),
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(ROUTE_ACTIVITY) {
+            val viewModel: ActivityViewModel = viewModel(
+                factory = viewModelFactory {
+                    initializer { ActivityViewModel(app, app.activityRepository, app.backupManager) }
+                },
+            )
+            ActivityScreen(
                 viewModel = viewModel,
                 palette = AppThemePalettes.getValue(AppTheme.fromKey(settings.themeKey)),
                 onBack = { navController.popBackStack() },

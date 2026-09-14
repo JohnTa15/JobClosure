@@ -29,7 +29,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Celebration
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Euro
 import androidx.compose.material.icons.filled.FlightTakeoff
 import androidx.compose.material.icons.filled.Person
@@ -93,7 +92,6 @@ fun BookingEditScreen(
     themeKey: String,
     onSave: (Booking, ignoreConflicts: Boolean) -> Unit,
     onDismissConflicts: () -> Unit,
-    onDelete: (Booking) -> Unit,
     onCancel: () -> Unit,
 ) {
     val zone = ZoneId.systemDefault()
@@ -122,7 +120,6 @@ fun BookingEditScreen(
     var receptionTime by remember { mutableStateOf(receptionLocal.format(timeFormatter)) }
     var receptionDuration by remember { mutableStateOf(booking.receptionDurationMinutes.toString()) }
     var validationError by remember { mutableStateOf<String?>(null) }
-    var showDeleteConfirmation by remember { mutableStateOf(false) }
 
     fun buildBooking(): Booking? {
         val ceremonyStart = parseDateTime(ceremonyDate, ceremonyTime, zone)
@@ -175,14 +172,6 @@ fun BookingEditScreen(
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.weight(1f).padding(start = 12.dp),
                 )
-                if (!isNew) {
-                    NewIconButton(
-                        icon = Icons.Filled.Delete,
-                        contentDescription = "Διαγραφή",
-                        onClick = { showDeleteConfirmation = true },
-                        size = 42.dp,
-                    )
-                }
             }
 
             Column(
@@ -374,24 +363,6 @@ fun BookingEditScreen(
         )
     }
 
-    if (showDeleteConfirmation) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirmation = false },
-            title = { Text("Διαγραφή δουλειάς") },
-            text = { Text("Είσαι σίγουρος ότι θέλεις να διαγράψεις οριστικά αυτή τη δουλειά;") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showDeleteConfirmation = false
-                    onDelete(booking)
-                }) {
-                    Text("Διαγραφή", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirmation = false }) { Text("Άκυρο") }
-            },
-        )
-    }
 }
 
 @Composable

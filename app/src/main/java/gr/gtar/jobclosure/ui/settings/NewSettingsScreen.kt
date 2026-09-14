@@ -96,7 +96,12 @@ private val crashTimestampFormatter = java.time.format.DateTimeFormatter
 /** Restyled settings screen - see design_handoff_theme_switcher/README.md "Screen 4". Also hosts
  *  the "Νέα εμφάνιση" switch itself, so it's reachable from either UI to turn the restyle off again. */
 @Composable
-fun NewSettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onImportFromCalendar: () -> Unit) {
+fun NewSettingsScreen(
+    viewModel: SettingsViewModel,
+    onBack: () -> Unit,
+    onImportFromCalendar: () -> Unit,
+    onOpenActivity: () -> Unit,
+) {
     var homeAddress by remember { mutableStateOf("") }
     var mapsApiKey by remember { mutableStateOf("") }
     var mapsProvider by remember { mutableStateOf(MapsProvider.OPENSTREETMAP) }
@@ -216,6 +221,27 @@ fun NewSettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit, onImport
                         "Ψάχνει στο ημερολόγιο του κινητού για γάμους και βαφτίσεις που έχεις " +
                             "γράψει με το χέρι, και τα προσθέτει σαν δουλειές - μαζί με drone, " +
                             "τοποθεσία και ώρα.",
+                        color = NewUiColors.onGroundFaint,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+
+                Column {
+                    NewSectionLabel(text = "Ιστορικό & αντίγραφα", modifier = Modifier.padding(bottom = 7.dp))
+                    AccentButton(
+                        text = "Τι έγινε στην εφαρμογή",
+                        onClick = onOpenActivity,
+                        icon = Icons.Filled.History,
+                        borderColor = palette.accentBorder,
+                        containerColor = palette.accentContainer,
+                        contentColor = palette.onAccentContainer,
+                        glowColor = palette.accentGlow,
+                        height = 46.dp,
+                    )
+                    Text(
+                        "Κρατάει τι πρόσθεσες, άλλαξες, διέγραψες ή εισήγαγες, και τα αντίγραφα " +
+                            "ασφαλείας των δουλειών σου - ένα την ημέρα, με επαναφορά όποτε χρειαστεί.",
                         color = NewUiColors.onGroundFaint,
                         fontSize = 11.sp,
                         modifier = Modifier.padding(top = 8.dp),

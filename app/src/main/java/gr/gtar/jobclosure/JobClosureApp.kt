@@ -1,7 +1,9 @@
 package gr.gtar.jobclosure
 
 import android.app.Application
+import gr.gtar.jobclosure.backup.BackupManager
 import gr.gtar.jobclosure.crash.CrashReporter
+import gr.gtar.jobclosure.data.ActivityRepository
 import gr.gtar.jobclosure.data.AppDatabase
 import gr.gtar.jobclosure.data.BookingRepository
 import gr.gtar.jobclosure.data.SettingsRepository
@@ -20,6 +22,14 @@ class JobClosureApp : Application() {
 
     val settingsRepository: SettingsRepository by lazy {
         SettingsRepository(this)
+    }
+
+    val activityRepository: ActivityRepository by lazy {
+        ActivityRepository(AppDatabase.getInstance(this).activityDao())
+    }
+
+    val backupManager: BackupManager by lazy {
+        BackupManager(this, bookingRepository, activityRepository)
     }
 
     val travelTimeRepository get() = NetworkModule.travelTimeRepository

@@ -118,9 +118,6 @@ fun main() = application {
                         onRefresh = { viewModel.loadBookings() },
                         onSetFilter = { viewModel.setFilter(it) },
                         onSetThemeKey = { viewModel.setThemeKey(it) },
-                        onRequestDelete = { viewModel.requestDelete(it) },
-                        onDismissDeleteRequest = { viewModel.dismissDeleteRequest() },
-                        onConfirmDelete = { viewModel.confirmDelete() },
                     )
                     is Screen.Settings -> DesktopSettingsScreen(
                         state = state,
@@ -141,7 +138,6 @@ fun main() = application {
                         themeKey = state.settings.themeKey,
                         onSave = { booking, ignoreConflicts -> viewModel.saveBooking(booking, ignoreConflicts) },
                         onDismissConflicts = { viewModel.dismissConflicts() },
-                        onDelete = { viewModel.deleteBooking(it) },
                         onCancel = { viewModel.cancelEdit() },
                     )
                 }

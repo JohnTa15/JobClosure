@@ -3,6 +3,8 @@ package gr.gtar.jobclosure.ui.bookinglist
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import gr.gtar.jobclosure.data.ActivityAction
+import gr.gtar.jobclosure.data.ActivityRepository
 import gr.gtar.jobclosure.data.AppSettings
 import gr.gtar.jobclosure.data.Booking
 import gr.gtar.jobclosure.data.BookingRepository
@@ -51,6 +53,7 @@ class BookingListViewModel(
     application: Application,
     private val repository: BookingRepository,
     private val settingsRepository: SettingsRepository,
+    private val activityRepository: ActivityRepository,
 ) : AndroidViewModel(application) {
 
     private val activeFilter = MutableStateFlow(BookingFilter.ALL)
@@ -219,6 +222,13 @@ class BookingListViewModel(
         if (bookings.isEmpty()) return
         viewModelScope.launch {
             repository.deleteAll(bookings)
+            bookings.forEach { booking ->
+                activityRepository.log(
+                    action = ActivityAction.BOOKING_DELETED,
+                    subject = booking.title.ifBlank { booking.type.displayName },
+                    details = booking.ceremonyStart.toLocalDate().toString(),
+                )
+            }
             _lastDeleteResult.value = BulkDeleteResult(deleted = bookings.size)
         }
     }

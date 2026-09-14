@@ -7,11 +7,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,12 +37,9 @@ import androidx.compose.material.icons.filled.FlightTakeoff
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -123,13 +118,9 @@ fun BookingListScreen(
     onRefresh: () -> Unit,
     onSetFilter: (BookingFilter) -> Unit,
     onSetThemeKey: (String) -> Unit,
-    onRequestDelete: (Booking) -> Unit,
-    onDismissDeleteRequest: () -> Unit,
-    onConfirmDelete: () -> Unit,
 ) {
     val bookings = state.filteredBookings
     val filter = state.filter
-    val pendingDelete = state.pendingDelete
     val activeTheme = AppTheme.fromKey(state.settings.themeKey)
     val palette = AppThemePalettes.getValue(activeTheme)
 
@@ -238,7 +229,6 @@ fun BookingListScreen(
                                     NewBookingCard(
                                         booking = booking,
                                         onClick = { onOpenBooking(booking) },
-                                        onLongPress = { onRequestDelete(booking) },
                                     )
                                 }
                             }
@@ -265,21 +255,6 @@ fun BookingListScreen(
         )
     }
 
-    pendingDelete?.let { booking ->
-        AlertDialog(
-            onDismissRequest = onDismissDeleteRequest,
-            title = { Text("Διαγραφή δουλειάς") },
-            text = { Text("Είσαι σίγουρος ότι θέλεις να διαγράψεις οριστικά τη δουλειά \"${booking.title}\";") },
-            confirmButton = {
-                TextButton(onClick = onConfirmDelete) {
-                    Text("Διαγραφή", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = onDismissDeleteRequest) { Text("Άκυρο") }
-            },
-        )
-    }
 }
 
 private fun summaryLine(bookings: List<Booking>): String {
@@ -409,9 +384,8 @@ private fun DayHeader(label: String, accent: Color, accentDim: Color) {
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun NewBookingCard(booking: Booking, onClick: () -> Unit, onLongPress: () -> Unit) {
+private fun NewBookingCard(booking: Booking, onClick: () -> Unit) {
     val colors = typeColors(booking.type)
     Row(
         modifier = Modifier
@@ -424,7 +398,7 @@ private fun NewBookingCard(booking: Booking, onClick: () -> Unit, onLongPress: (
             .clip(RoundedCornerShape(16.dp))
             .background(Brush.linearGradient(NewUiColors.cardGradient))
             .border(1.dp, NewUiColors.outlineSoft, RoundedCornerShape(16.dp))
-            .combinedClickable(onClick = onClick, onLongClick = onLongPress),
+            .clickable(onClick = onClick),
     ) {
         Box(modifier = Modifier.fillMaxHeight().width(4.dp).background(colors.barBrush))
         Column(modifier = Modifier.padding(14.dp)) {

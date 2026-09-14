@@ -7,6 +7,8 @@ import gr.gtar.jobclosure.calendar.CalendarBookingParser
 import gr.gtar.jobclosure.calendar.CalendarHelper
 import gr.gtar.jobclosure.calendar.CalendarInfo
 import gr.gtar.jobclosure.calendar.ParsedCalendarBooking
+import gr.gtar.jobclosure.data.ActivityAction
+import gr.gtar.jobclosure.data.ActivityRepository
 import gr.gtar.jobclosure.data.Booking
 import gr.gtar.jobclosure.data.BookingRepository
 import kotlinx.coroutines.Dispatchers
@@ -73,6 +75,7 @@ private fun contentKey(startMillis: Long, typeName: String, client: String): Str
 class CalendarImportViewModel(
     application: Application,
     private val bookingRepository: BookingRepository,
+    private val activityRepository: ActivityRepository,
 ) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(CalendarImportUiState())
@@ -233,6 +236,12 @@ class CalendarImportViewModel(
                 .flatMap { group -> group.sortedBy { it.id }.drop(1) }
 
             removed.forEach { bookingRepository.delete(it) }
+            if (removed.isNotEmpty()) {
+                activityRepository.log(
+                    action = ActivityAction.DUPLICATES_REMOVED,
+                    subject = "${removed.size} διπλές δουλειές",
+                )
+            }
             _uiState.value = _uiState.value.copy(duplicatesRemoved = removed.size)
             if (_uiState.value.hasScanned) scan()
         }
@@ -281,6 +290,14 @@ class CalendarImportViewModel(
                         calendarId = parsed.calendarId,
                         churchCalendarEventId = parsed.calendarEventId,
                     ),
+                )
+            }
+
+            if (toImport.isNotEmpty()) {
+                activityRepository.log(
+                    action = ActivityAction.CALENDAR_IMPORT,
+                    subject = "${toImport.size} δουλειές από το ημερολόγιο",
+                    details = toImport.joinToString(", ", limit = 3) { it.parsed.clientName.ifBlank { it.parsed.title } },
                 )
             }
 

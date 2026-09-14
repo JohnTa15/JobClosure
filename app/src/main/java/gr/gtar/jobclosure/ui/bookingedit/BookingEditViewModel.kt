@@ -5,6 +5,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import gr.gtar.jobclosure.calendar.CalendarHelper
 import gr.gtar.jobclosure.calendar.CalendarInfo
+import gr.gtar.jobclosure.data.ActivityAction
+import gr.gtar.jobclosure.data.ActivityRepository
 import gr.gtar.jobclosure.data.Booking
 import gr.gtar.jobclosure.data.BookingRepository
 import gr.gtar.jobclosure.data.BookingType
@@ -70,6 +72,7 @@ class BookingEditViewModel(
     application: Application,
     private val repository: BookingRepository,
     private val settingsRepository: SettingsRepository,
+    private val activityRepository: ActivityRepository,
     val placeSearchRepository: PlaceSearchRepository,
     private val bookingId: Long?,
 ) : AndroidViewModel(application) {
@@ -240,6 +243,12 @@ class BookingEditViewModel(
                 )
             }
 
+            activityRepository.log(
+                action = if (bookingId == null) ActivityAction.BOOKING_CREATED else ActivityAction.BOOKING_UPDATED,
+                subject = booking.title.ifBlank { booking.type.displayName },
+                details = booking.ceremonyStart.toLocalDate().toString(),
+            )
+
             _uiState.value = state.copy(isSaving = false, saved = true)
         }
     }
@@ -258,6 +267,11 @@ class BookingEditViewModel(
             // The booking goes; its calendar entries stay. Deleting them would reach into a
             // calendar the user may share with other people.
             repository.delete(existing)
+            activityRepository.log(
+                action = ActivityAction.BOOKING_DELETED,
+                subject = existing.title.ifBlank { existing.type.displayName },
+                details = existing.ceremonyStart.toLocalDate().toString(),
+            )
             _uiState.value = _uiState.value.copy(saved = true)
         }
     }

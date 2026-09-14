@@ -66,6 +66,7 @@ fun SettingsScreen(
     viewModel: SettingsViewModel,
     onBack: () -> Unit,
     onImportFromCalendar: () -> Unit,
+    onOpenActivity: () -> Unit,
 ) {
     var homeAddress by remember { mutableStateOf("") }
     var mapsApiKey by remember { mutableStateOf("") }
@@ -175,6 +176,21 @@ fun SettingsScreen(
                     )
                     Button(onClick = onImportFromCalendar, modifier = Modifier.fillMaxWidth()) {
                         Text("Εισαγωγή από το ημερολόγιο")
+                    }
+                }
+            }
+
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Ιστορικό & αντίγραφα", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Τι πρόσθεσες, άλλαξες, διέγραψες ή εισήγαγες, και τα αντίγραφα ασφαλείας " +
+                            "των δουλειών σου - ένα την ημέρα, με επαναφορά όποτε χρειαστεί.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Button(onClick = onOpenActivity, modifier = Modifier.fillMaxWidth()) {
+                        Text("Τι έγινε στην εφαρμογή")
                     }
                 }
             }

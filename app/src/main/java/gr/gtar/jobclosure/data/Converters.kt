@@ -20,4 +20,13 @@ class Converters {
 
     @TypeConverter
     fun toBookingType(type: BookingType): String = type.name
+
+    @TypeConverter
+    fun fromActivityAction(value: String): ActivityAction =
+        // An entry written by a newer version and read back by an older one would otherwise crash
+        // the history screen; an unknown action is not worth more than a dropped label.
+        runCatching { ActivityAction.valueOf(value) }.getOrDefault(ActivityAction.BOOKING_UPDATED)
+
+    @TypeConverter
+    fun toActivityAction(action: ActivityAction): String = action.name
 }

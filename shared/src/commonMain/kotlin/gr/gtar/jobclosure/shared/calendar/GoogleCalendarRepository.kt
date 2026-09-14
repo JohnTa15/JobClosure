@@ -5,7 +5,6 @@ import gr.gtar.jobclosure.shared.model.BookingType
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.bearerAuth
-import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import io.ktor.client.request.patch
@@ -116,16 +115,13 @@ class GoogleCalendarRepository(
                 insertEvent(calendarId, receptionEvent).id
             }
         } else {
-            booking.receptionEventId?.let { deleteEvent(calendarId, it) }
-            null
+            // The reception is off, so nothing is written for it - but its event stays in the
+            // calendar. This app never deletes from Google Calendar; the id is kept so turning
+            // the reception back on updates that same event instead of adding a second one.
+            booking.receptionEventId
         }
 
         return booking.copy(eventId = ceremonyId, receptionEventId = receptionId)
-    }
-
-    suspend fun deleteBooking(calendarId: String, booking: Booking) {
-        booking.eventId?.let { deleteEvent(calendarId, it) }
-        booking.receptionEventId?.let { deleteEvent(calendarId, it) }
     }
 
     private suspend fun insertEvent(calendarId: String, event: GCalEvent): GCalEvent =
@@ -142,14 +138,6 @@ class GoogleCalendarRepository(
             bearerAuth(getAccessToken())
             contentType(ContentType.Application.Json)
             setBody(event)
-        }
-    }
-
-    private suspend fun deleteEvent(calendarId: String, eventId: String) {
-        httpClient.delete(
-            "$baseUrl/calendars/${calendarId.encodeURLPathPart()}/events/${eventId.encodeURLPathPart()}",
-        ) {
-            bearerAuth(getAccessToken())
         }
     }
 

@@ -133,6 +133,63 @@ object CalendarHelper {
     }
 
     /**
+     * The events behind a set of booking ids, keyed by event id. Used by the backup, which has to
+     * write down what the calendar entry actually says today rather than what the app believes it
+     * says - the two drift apart the moment the entry is edited in the calendar app.
+     */
+    fun readEventsByIds(context: Context, eventIds: Collection<Long>): Map<Long, CalendarEvent> {
+        if (eventIds.isEmpty()) return emptyMap()
+        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_CALENDAR)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            return emptyMap()
+        }
+
+        val projection = arrayOf(
+            CalendarContract.Events._ID,
+            CalendarContract.Events.CALENDAR_ID,
+            CalendarContract.Events.TITLE,
+            CalendarContract.Events.DESCRIPTION,
+            CalendarContract.Events.EVENT_LOCATION,
+            CalendarContract.Events.DTSTART,
+            CalendarContract.Events.DTEND,
+        )
+        val ids = eventIds.distinct()
+        val selection = "${CalendarContract.Events._ID} IN (${ids.joinToString(",") { "?" }})"
+
+        val result = mutableMapOf<Long, CalendarEvent>()
+        context.contentResolver.query(
+            CalendarContract.Events.CONTENT_URI,
+            projection,
+            selection,
+            ids.map { it.toString() }.toTypedArray(),
+            null,
+        )?.use { cursor ->
+            val idIdx = cursor.getColumnIndexOrThrow(CalendarContract.Events._ID)
+            val calendarIdIdx = cursor.getColumnIndexOrThrow(CalendarContract.Events.CALENDAR_ID)
+            val titleIdx = cursor.getColumnIndexOrThrow(CalendarContract.Events.TITLE)
+            val descriptionIdx = cursor.getColumnIndexOrThrow(CalendarContract.Events.DESCRIPTION)
+            val locationIdx = cursor.getColumnIndexOrThrow(CalendarContract.Events.EVENT_LOCATION)
+            val startIdx = cursor.getColumnIndexOrThrow(CalendarContract.Events.DTSTART)
+            val endIdx = cursor.getColumnIndexOrThrow(CalendarContract.Events.DTEND)
+            while (cursor.moveToNext()) {
+                val start = cursor.getLong(startIdx)
+                val id = cursor.getLong(idIdx)
+                result[id] = CalendarEvent(
+                    id = id,
+                    calendarId = cursor.getLong(calendarIdIdx),
+                    title = cursor.getString(titleIdx) ?: "",
+                    description = cursor.getString(descriptionIdx) ?: "",
+                    location = cursor.getString(locationIdx) ?: "",
+                    startMillis = start,
+                    endMillis = if (cursor.isNull(endIdx)) start + 60 * 60 * 1000L else cursor.getLong(endIdx),
+                )
+            }
+        }
+        return result
+    }
+
+    /**
      * Inserts an event with a single ALERT reminder [reminderMinutesBefore] minutes before start.
      * Returns the new event's id, or null if calendar permissions are missing or the insert failed.
      */

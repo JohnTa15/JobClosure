@@ -38,6 +38,7 @@ class MainActivity : ComponentActivity() {
         requestPermissions.launch(permissions.toTypedArray())
 
         checkForUpdate()
+        backUpOncePerDay()
 
         setContent {
             JobClosureTheme {
@@ -46,6 +47,13 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /** A day's work is worth one file. Runs in the background and says nothing: the history screen
+     *  is where the backups are listed, and a toast on every launch would be noise. */
+    private fun backUpOncePerDay() {
+        val app = application as JobClosureApp
+        lifecycleScope.launch { runCatching { app.backupManager.backupIfDue() } }
     }
 
     private fun checkForUpdate() {
