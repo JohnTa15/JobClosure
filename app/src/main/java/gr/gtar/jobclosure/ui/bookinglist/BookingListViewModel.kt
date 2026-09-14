@@ -3,7 +3,6 @@ package gr.gtar.jobclosure.ui.bookinglist
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import gr.gtar.jobclosure.calendar.CalendarHelper
 import gr.gtar.jobclosure.data.AppSettings
 import gr.gtar.jobclosure.data.Booking
 import gr.gtar.jobclosure.data.BookingRepository
@@ -21,20 +20,10 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
-/** What a bulk delete was asked to do, and what it managed. */
-data class BulkDeleteRequest(
-    val bookings: List<Booking>,
-    /** How many of them actually have a device-calendar event behind them - without this the
-     *  "delete from the calendar too" choice is an abstraction the user cannot check. */
-    val withCalendarEvents: Int,
-    val calendarPermissionGranted: Boolean,
-)
+/** The bookings a bulk delete is about to remove, held while the user confirms. */
+data class BulkDeleteRequest(val bookings: List<Booking>)
 
-data class BulkDeleteResult(
-    val deleted: Int,
-    val calendarEventsDeleted: Int,
-    val calendarEventsFailed: Int,
-)
+data class BulkDeleteResult(val deleted: Int)
 
 enum class BookingFilter(val label: String) {
     ALL("Όλα"),
@@ -165,13 +154,11 @@ class BookingListViewModel(
         _pendingDelete.value = null
     }
 
-    /** Single delete, routed through the same path as a bulk one so both offer the same choice
-     *  about the calendar. It used to delete the calendar events unconditionally, with nothing
-     *  said - which is not something to do silently to an entry the user may share with others. */
-    fun confirmDelete(alsoDeleteFromCalendar: Boolean) {
+    /** Single delete, routed through the same path as a bulk one so the two cannot drift apart. */
+    fun confirmDelete() {
         val booking = _pendingDelete.value ?: return
         _pendingDelete.value = null
-        deleteBookings(listOf(booking), alsoDeleteFromCalendar)
+        deleteBookings(listOf(booking))
     }
 
     fun startSelection(booking: Booking) {
@@ -208,53 +195,31 @@ class BookingListViewModel(
     fun requestBulkDelete() {
         val selected = selectedBookings()
         if (selected.isEmpty()) return
-        _pendingBulkDelete.value = BulkDeleteRequest(
-            bookings = selected,
-            withCalendarEvents = selected.count { it.churchCalendarEventId != null || it.receptionCalendarEventId != null },
-            calendarPermissionGranted = CalendarHelper.hasCalendarPermissions(getApplication()),
-        )
+        _pendingBulkDelete.value = BulkDeleteRequest(bookings = selected)
     }
 
     fun dismissBulkDelete() {
         _pendingBulkDelete.value = null
     }
 
-    fun confirmBulkDelete(alsoDeleteFromCalendar: Boolean) {
+    fun confirmBulkDelete() {
         val request = _pendingBulkDelete.value ?: return
         _pendingBulkDelete.value = null
         clearSelection()
-        deleteBookings(request.bookings, alsoDeleteFromCalendar)
+        deleteBookings(request.bookings)
     }
 
     fun dismissDeleteResult() {
         _lastDeleteResult.value = null
     }
 
-    private fun deleteBookings(bookings: List<Booking>, alsoDeleteFromCalendar: Boolean) {
+    /** Removes the bookings from the app only. The device calendar is never written to here - what
+     *  is in the user's calendar is theirs, and may be the copy other people are looking at. */
+    private fun deleteBookings(bookings: List<Booking>) {
         if (bookings.isEmpty()) return
         viewModelScope.launch {
-            val context = getApplication<Application>()
-            var calendarDeleted = 0
-            var calendarFailed = 0
-
-            if (alsoDeleteFromCalendar) {
-                // Calendar first: if the app rows went first and this then failed, the events would
-                // be orphaned with nothing left pointing at them to try again.
-                bookings.forEach { booking ->
-                    listOfNotNull(booking.churchCalendarEventId, booking.receptionCalendarEventId)
-                        .forEach { eventId ->
-                            val removed = runCatching { CalendarHelper.deleteEvent(context, eventId) }.getOrDefault(false)
-                            if (removed) calendarDeleted++ else calendarFailed++
-                        }
-                }
-            }
-
             repository.deleteAll(bookings)
-            _lastDeleteResult.value = BulkDeleteResult(
-                deleted = bookings.size,
-                calendarEventsDeleted = calendarDeleted,
-                calendarEventsFailed = calendarFailed,
-            )
+            _lastDeleteResult.value = BulkDeleteResult(deleted = bookings.size)
         }
     }
 }

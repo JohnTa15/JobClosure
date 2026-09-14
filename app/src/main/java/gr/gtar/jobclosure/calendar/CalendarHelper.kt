@@ -211,12 +211,6 @@ object CalendarHelper {
         return true
     }
 
-    fun deleteEvent(context: Context, eventId: Long): Boolean {
-        if (!hasCalendarPermissions(context)) return false
-        val eventUri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId)
-        return context.contentResolver.delete(eventUri, null, null) > 0
-    }
-
     /**
      * Adds or removes [email] as an attendee on [eventId]. On a Google-synced calendar this is
      * what makes the event show up on the attendee's own calendar too, and is what makes Google

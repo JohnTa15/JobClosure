@@ -39,7 +39,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -95,12 +94,7 @@ fun BookingListScreen(
         val message = buildString {
             append("Διαγράφηκαν ${result.deleted} ")
             append(if (result.deleted == 1) "δουλειά" else "δουλειές")
-            when {
-                result.calendarEventsFailed > 0 ->
-                    append(" · ${result.calendarEventsFailed} εγγραφές ημερολογίου ΔΕΝ διαγράφηκαν")
-                result.calendarEventsDeleted > 0 ->
-                    append(" · ${result.calendarEventsDeleted} και από το ημερολόγιο")
-            }
+            append(" · το ημερολόγιο δεν πειράχτηκε")
         }
         android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
         viewModel.dismissDeleteResult()
@@ -202,15 +196,11 @@ fun BookingListScreen(
     }
 
     pendingDelete?.let { booking ->
-        val hasCalendarEvent = booking.churchCalendarEventId != null || booking.receptionCalendarEventId != null
         ClassicDeleteDialog(
             title = "Διαγραφή δουλειάς",
             body = "Να διαγραφεί οριστικά η δουλειά \"${booking.title}\";",
-            calendarCount = if (hasCalendarEvent) 1 else 0,
-            totalCount = 1,
-            calendarPermissionGranted = true,
             onDismiss = { viewModel.dismissDeleteRequest() },
-            onConfirm = { alsoCalendar -> viewModel.confirmDelete(alsoCalendar) },
+            onConfirm = { viewModel.confirmDelete() },
         )
     }
 
@@ -218,11 +208,8 @@ fun BookingListScreen(
         ClassicDeleteDialog(
             title = "Διαγραφή ${request.bookings.size} δουλειών",
             body = "Θα διαγραφούν οριστικά από την εφαρμογή.",
-            calendarCount = request.withCalendarEvents,
-            totalCount = request.bookings.size,
-            calendarPermissionGranted = request.calendarPermissionGranted,
             onDismiss = { viewModel.dismissBulkDelete() },
-            onConfirm = { alsoCalendar -> viewModel.confirmBulkDelete(alsoCalendar) },
+            onConfirm = { viewModel.confirmBulkDelete() },
         )
     }
 
@@ -360,20 +347,15 @@ private fun IconPill(
 }
 
 
-/** Classic-design twin of the restyled screen's delete dialog - same choice, same counts. */
+/** Classic-design twin of the restyled screen's delete dialog - same wording, same promise about
+ *  the calendar. */
 @Composable
 private fun ClassicDeleteDialog(
     title: String,
     body: String,
-    calendarCount: Int,
-    totalCount: Int,
-    calendarPermissionGranted: Boolean,
     onDismiss: () -> Unit,
-    onConfirm: (alsoDeleteFromCalendar: Boolean) -> Unit,
+    onConfirm: () -> Unit,
 ) {
-    val canTouchCalendar = calendarPermissionGranted && calendarCount > 0
-    var alsoCalendar by remember(title) { mutableStateOf(false) }
-
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Filled.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
@@ -381,40 +363,15 @@ private fun ClassicDeleteDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(body)
-                when {
-                    calendarCount == 0 -> Text(
-                        "Καμία από αυτές δεν έχει εγγραφή στο ημερολόγιο του κινητού.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    !calendarPermissionGranted -> Text(
-                        "Δεν υπάρχει άδεια ημερολογίου, οπότε οι εγγραφές στο ημερολόγιο θα μείνουν.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                    else -> Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().clickable { alsoCalendar = !alsoCalendar },
-                    ) {
-                        Checkbox(checked = alsoCalendar, onCheckedChange = { alsoCalendar = it })
-                        Column(modifier = Modifier.padding(start = 4.dp)) {
-                            Text("Διαγραφή και από το ημερολόγιο")
-                            Text(
-                                if (totalCount == 1) {
-                                    "Αυτή η δουλειά έχει εγγραφή στο ημερολόγιο."
-                                } else {
-                                    "$calendarCount από τις $totalCount έχουν εγγραφή στο ημερολόγιο."
-                                },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                }
+                Text(
+                    "Το ημερολόγιο του κινητού δεν πειράζεται - οι εγγραφές μένουν εκεί που είναι.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(alsoCalendar && canTouchCalendar) }) {
+            TextButton(onClick = onConfirm) {
                 Text("Διαγραφή", color = MaterialTheme.colorScheme.error)
             }
         },

@@ -354,7 +354,7 @@ fun BookingEditScreen(
             onDismissRequest = { viewModel.dismissDeleteConfirmation() },
             icon = { Icon(Icons.Filled.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
             title = { Text("Διαγραφή δουλειάς") },
-            text = { Text("Είσαι σίγουρος ότι θέλεις να διαγράψεις οριστικά αυτή τη δουλειά;") },
+            text = { Text("Είσαι σίγουρος ότι θέλεις να διαγράψεις οριστικά αυτή τη δουλειά; Η εγγραφή στο ημερολόγιο του κινητού μένει.") },
             confirmButton = {
                 TextButton(onClick = { viewModel.deleteAndFinish() }) {
                     Text("Διαγραφή", color = MaterialTheme.colorScheme.error)

@@ -45,9 +45,8 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteForever
-import androidx.compose.material.icons.filled.EventBusy
+import androidx.compose.material.icons.filled.EventAvailable
 import androidx.compose.material.icons.filled.FlightTakeoff
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Settings
@@ -84,7 +83,6 @@ import gr.gtar.jobclosure.ui.components.NewIconButton
 import gr.gtar.jobclosure.ui.components.NewListEntrance
 import gr.gtar.jobclosure.ui.components.NewSectionLabel
 import gr.gtar.jobclosure.ui.components.NewSelectableSwatch
-import gr.gtar.jobclosure.ui.components.NewSwitch
 import gr.gtar.jobclosure.ui.theme.AppTheme
 import gr.gtar.jobclosure.ui.theme.AppThemePalettes
 import gr.gtar.jobclosure.ui.theme.NewUiColors
@@ -333,23 +331,18 @@ fun NewBookingListScreen(
     }
 
     pendingDelete?.let { booking ->
-        val hasCalendarEvent = booking.churchCalendarEventId != null || booking.receptionCalendarEventId != null
         NewDeleteDialog(
             bookings = listOf(booking),
-            calendarCount = if (hasCalendarEvent) 1 else 0,
-            calendarPermissionGranted = true,
             onDismiss = { viewModel.dismissDeleteRequest() },
-            onConfirm = { alsoCalendar -> viewModel.confirmDelete(alsoCalendar) },
+            onConfirm = { viewModel.confirmDelete() },
         )
     }
 
     pendingBulkDelete?.let { request ->
         NewDeleteDialog(
             bookings = request.bookings,
-            calendarCount = request.withCalendarEvents,
-            calendarPermissionGranted = request.calendarPermissionGranted,
             onDismiss = { viewModel.dismissBulkDelete() },
-            onConfirm = { alsoCalendar -> viewModel.confirmBulkDelete(alsoCalendar) },
+            onConfirm = { viewModel.confirmBulkDelete() },
         )
     }
 
@@ -705,23 +698,18 @@ private fun UnconfirmedMarker() {
  * dropped into the middle of it.
  *
  * It lists what is about to go: on a bulk delete the whole point of the pause is being able to see
- * that the selection is the one you meant, and a count alone cannot show that. The calendar choice
- * is a switch with its own counts beside it, because deleting a booking used to take its calendar
- * entries unconditionally and silently - and a shared calendar entry may be the only copy other
- * people can see.
+ * that the selection is the one you meant, and a count alone cannot show that. The delete stops at
+ * the app - the device calendar is never touched - and the dialog says so, because that is the
+ * first thing you want to know before confirming.
  */
 @Composable
 private fun NewDeleteDialog(
     bookings: List<Booking>,
-    calendarCount: Int,
-    calendarPermissionGranted: Boolean,
     onDismiss: () -> Unit,
-    onConfirm: (alsoDeleteFromCalendar: Boolean) -> Unit,
+    onConfirm: () -> Unit,
 ) {
     // Fixed rather than themed: a destructive action should read the same whichever palette is on.
     val danger = Color(0xFFFF6B6B)
-    val canTouchCalendar = calendarPermissionGranted && calendarCount > 0
-    var alsoCalendar by remember(bookings) { mutableStateOf(false) }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         GlowBox(
@@ -783,55 +771,22 @@ private fun NewDeleteDialog(
                     }
                 }
 
-                when {
-                    calendarCount == 0 -> Text(
-                        "Καμία από αυτές δεν έχει εγγραφή στο ημερολόγιο του κινητού.",
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                ) {
+                    Icon(
+                        Icons.Filled.EventAvailable,
+                        contentDescription = null,
+                        tint = NewUiColors.onGroundDim,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Text(
+                        "Το ημερολόγιο του κινητού δεν πειράζεται - οι εγγραφές μένουν εκεί που είναι.",
                         color = NewUiColors.onGroundFaint,
                         fontSize = 12.sp,
-                        modifier = Modifier.padding(top = 16.dp),
+                        modifier = Modifier.padding(start = 8.dp),
                     )
-                    !calendarPermissionGranted -> Text(
-                        "Δεν υπάρχει άδεια ημερολογίου, οπότε οι εγγραφές στο ημερολόγιο θα μείνουν.",
-                        color = danger,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(top = 16.dp),
-                    )
-                    else -> Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 16.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(if (alsoCalendar) danger.copy(alpha = 0.10f) else Color(0x66232532))
-                            .border(
-                                1.dp,
-                                if (alsoCalendar) danger.copy(alpha = 0.35f) else NewUiColors.outlineSoft,
-                                RoundedCornerShape(14.dp),
-                            )
-                            .clickable { alsoCalendar = !alsoCalendar }
-                            .padding(14.dp),
-                    ) {
-                        Icon(
-                            Icons.Filled.EventBusy,
-                            contentDescription = null,
-                            tint = if (alsoCalendar) danger else NewUiColors.onGroundDim,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
-                            Text("Και από το ημερολόγιο", color = NewUiColors.onGround, fontSize = 14.sp)
-                            Text(
-                                if (bookings.size == 1) {
-                                    "Αυτή η δουλειά έχει εγγραφή στο ημερολόγιο."
-                                } else {
-                                    "$calendarCount από τις ${bookings.size} έχουν εγγραφή."
-                                },
-                                color = NewUiColors.onGroundFaint,
-                                fontSize = 11.sp,
-                                modifier = Modifier.padding(top = 2.dp),
-                            )
-                        }
-                        NewSwitch(checked = alsoCalendar, onColor = danger, onCheckedChange = { alsoCalendar = it })
-                    }
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 20.dp)) {
@@ -847,7 +802,7 @@ private fun NewDeleteDialog(
                     )
                     AccentButton(
                         text = "Διαγραφή",
-                        onClick = { onConfirm(alsoCalendar && canTouchCalendar) },
+                        onClick = onConfirm,
                         icon = Icons.Filled.DeleteForever,
                         borderColor = danger.copy(alpha = 0.55f),
                         containerColor = danger.copy(alpha = 0.16f),
@@ -894,20 +849,15 @@ private fun DeletePreviewRow(booking: Booking) {
 /** Says what the delete actually did, and stays put when part of it failed. */
 @Composable
 private fun DeleteResultBanner(result: BulkDeleteResult, onDismiss: () -> Unit) {
-    val hasFailures = result.calendarEventsFailed > 0
-    val tint = if (hasFailures) Color(0xFFFF6B6B) else NewUiColors.success
+    val tint = NewUiColors.success
     var visible by remember(result) { mutableStateOf(false) }
 
     LaunchedEffect(result) {
         visible = true
-        // A clean result is worth a glance, not a dismissal; a partial one has to be read, so it
-        // waits for the user instead of sliding away with the bad news.
-        if (!hasFailures) {
-            delay(5000)
-            visible = false
-            delay(220)
-            onDismiss()
-        }
+        delay(5000)
+        visible = false
+        delay(220)
+        onDismiss()
     }
 
     AnimatedVisibility(
@@ -938,7 +888,7 @@ private fun DeleteResultBanner(result: BulkDeleteResult, onDismiss: () -> Unit) 
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        if (hasFailures) Icons.Filled.Warning else Icons.Filled.CheckCircle,
+                        Icons.Filled.CheckCircle,
                         contentDescription = null,
                         tint = tint,
                         modifier = Modifier.size(17.dp),
@@ -952,15 +902,8 @@ private fun DeleteResultBanner(result: BulkDeleteResult, onDismiss: () -> Unit) 
                         fontWeight = FontWeight.Medium,
                     )
                     Text(
-                        when {
-                            hasFailures ->
-                                "${result.calendarEventsFailed} εγγραφές ημερολογίου δεν διαγράφηκαν - " +
-                                    "μπορεί να τις έχει σβήσει ήδη κάποιος άλλος ή να λείπει η άδεια."
-                            result.calendarEventsDeleted > 0 ->
-                                "Μαζί και ${result.calendarEventsDeleted} εγγραφές από το ημερολόγιο."
-                            else -> "Το ημερολόγιο του κινητού δεν πειράχτηκε."
-                        },
-                        color = if (hasFailures) tint else NewUiColors.onGroundDim,
+                        "Το ημερολόγιο του κινητού δεν πειράχτηκε.",
+                        color = NewUiColors.onGroundDim,
                         fontSize = 11.sp,
                         modifier = Modifier.padding(top = 2.dp),
                     )

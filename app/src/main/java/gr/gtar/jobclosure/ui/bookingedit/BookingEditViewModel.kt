@@ -211,10 +211,11 @@ class BookingEditViewModel(
                             recDescription, recStartMillis, recEndMillis, reminderMinutes,
                         )
                     }
-                } else if (receptionEventId != null) {
-                    CalendarHelper.deleteEvent(context, receptionEventId)
-                    receptionEventId = null
                 }
+                // Turning the reception back off leaves its calendar entry where it is: the app
+                // never removes anything from the device calendar. The id stays on the booking, so
+                // switching the reception on again updates that same entry instead of adding a
+                // second one.
 
                 // Inviting the drone partner as an attendee both puts the job on his calendar
                 // (once he accepts) and makes Google Calendar send him the invite email - no
@@ -254,9 +255,8 @@ class BookingEditViewModel(
     fun deleteAndFinish() {
         viewModelScope.launch {
             val existing = bookingId?.let { repository.getById(it) } ?: return@launch
-            val context = getApplication<Application>()
-            existing.churchCalendarEventId?.let { CalendarHelper.deleteEvent(context, it) }
-            existing.receptionCalendarEventId?.let { CalendarHelper.deleteEvent(context, it) }
+            // The booking goes; its calendar entries stay. Deleting them would reach into a
+            // calendar the user may share with other people.
             repository.delete(existing)
             _uiState.value = _uiState.value.copy(saved = true)
         }
